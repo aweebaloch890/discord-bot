@@ -117,7 +117,12 @@ new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
 ),
 new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("payment").setLabel("Payment Method (JazzCash/Easypaisa/Bank/Crypto)").setStyle(TextInputStyle.Short).setRequired(true)
+new TextInputBuilder()
+.setCustomId("payment")
+.setLabel("Payment Method")
+.setPlaceholder("JazzCash / Easypaisa / Bank / Crypto")
+.setStyle(TextInputStyle.Short)
+.setRequired(true)
 ),
 new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("details").setLabel("Extra Details").setStyle(TextInputStyle.Paragraph).setRequired(false)
@@ -232,8 +237,8 @@ return interaction.reply(`Ticket claimed by <@${interaction.user.id}>`);
 
 if (interaction.customId === "close") {
 
-// Allow user OR staff
-const isStaff = interaction.member.roles.cache.has(STAFF_ROLE_ID);
+await interaction.deferReply({ ephemeral: true });
+
 const channel = interaction.channel;
 
 const messages = await channel.messages.fetch({ limit: 100 });
@@ -245,23 +250,26 @@ transcript += `[${m.author.tag}] ${m.content}\n`;
 fs.writeFileSync(`./transcript-${channel.name}.txt`, transcript);
 
 // Send transcript to user DM
-const userId = channel.permissionOverwrites.cache
-.find(p => p.type === 1 && p.allow.has(PermissionsBitField.Flags.ViewChannel))?.id;
-
-if (userId) {
-const user = await client.users.fetch(userId).catch(()=>{});
+const userOverwrite = channel.permissionOverwrites.cache.find(p => p.type === 1);
+if (userOverwrite) {
+const user = await client.users.fetch(userOverwrite.id).catch(()=>{});
 if (user) {
 await user.send({
 content: `Your ticket ${channel.name} has been closed.\nHere is the transcript:`,
 files: [`./transcript-${channel.name}.txt`]
 }).catch(()=>{});
 }
+
+// Remove user access (channel gayab)
+await channel.permissionOverwrites.edit(userOverwrite.id, {
+ViewChannel: false
+});
 }
 
 await channel.setParent(CLOSED_CATEGORY_ID);
 await channel.setName(`closed-${channel.name}`);
 
-return interaction.reply("Ticket Closed & Transcript Sent ✅");
+return interaction.editReply({ content: "Ticket Closed & Transcript Sent ✅" });
 }
 }
 
@@ -276,4 +284,3 @@ interaction.reply({ content: "Error handled safely ✅", ephemeral: true }).catc
 http.createServer((req,res)=>{res.end("Running");}).listen(process.env.PORT||3000);
 
 client.login(process.env.TOKEN);
-
