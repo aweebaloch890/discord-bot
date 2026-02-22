@@ -1,23 +1,25 @@
 const {
   Client,
   GatewayIntentBits,
-  Partials,
   EmbedBuilder,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  PermissionsBitField,
-  ChannelType,
+  ButtonBuilder,
+  ButtonStyle,
   SlashCommandBuilder,
-  Routes,
-  REST
+  ChannelType,
+  PermissionsBitField,
+  REST,
+  Routes
 } = require("discord.js");
 
-const fs = require("fs");
-const { v4: uuidv4 } = require("uuid");
-const transcripts = require("discord-html-transcripts");
-const config = require("./config.json");
+const crypto = require("crypto");
 
-/* ================= CLIENT ================= */
+const CLIENT_ID = "1357680631714156624";
+const GUILD_ID = "1337111106971504661";
+
+const CATEGORY_ID = "1337265672597672079";
+const STAFF_ROLE_ID = "1397441836330651798";
+const LOGO_URL = "https://cdn.discordapp.com/attachments/1382467950186987521/1475164824219422873/tec_trader-removebg-preview_1.png?ex=699c7dcd&is=699b2c4d&hm=05c83b4aa60b897d7c1c89a95e325787e55af73394e0f2903dc92ccccf550e66&"; // put your purple X logo here
 
 const client = new Client({
   intents: [
@@ -25,235 +27,256 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Channel]
+  ]
 });
 
-/* ================= TOKEN SAFE CHECK ================= */
 
-const TOKEN = process.env.TOKEN;
+// ================= SLASH COMMANDS =================
 
-if (!TOKEN) {
-  console.error("❌ TOKEN not found! Railway Variables check karo.");
-  process.exit(1);
-}
+const commands = [
 
-if (typeof TOKEN !== "string" || TOKEN.split(".").length !== 3) {
-  console.error("❌ Invalid TOKEN format! Token galat ya incomplete hai.");
-  process.exit(1);
-}
+  new SlashCommandBuilder().setName("ticketpanel").setDescription("Send ticket panel"),
 
-console.log("✅ TOKEN loaded. Length:", TOKEN.length);
+  new SlashCommandBuilder()
+    .setName("vouch")
+    .setDescription("Create a vouch")
+    .addStringOption(o => o.setName("product").setRequired(true).setDescription("Product"))
+    .addStringOption(o => o.setName("price").setRequired(true).setDescription("Price"))
+    .addStringOption(o => o.setName("seller").setRequired(true).setDescription("Seller"))
+    .addIntegerOption(o => o.setName("rating").setRequired(true).setDescription("Rating 1-5"))
+    .addStringOption(o => o.setName("reason").setRequired(true).setDescription("Reason")),
 
-/* ================= DATABASE INIT ================= */
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("Ban a user")
+    .addUserOption(o => o.setName("user").setRequired(true).setDescription("User")),
 
-if (!fs.existsSync("./data")) fs.mkdirSync("./data");
-if (!fs.existsSync("./data/reps.json")) fs.writeFileSync("./data/reps.json", "{}");
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("Kick a user")
+    .addUserOption(o => o.setName("user").setRequired(true).setDescription("User")),
 
-const reps = JSON.parse(fs.readFileSync("./data/reps.json"));
+  new SlashCommandBuilder()
+    .setName("warn")
+    .setDescription("Warn a user")
+    .addUserOption(o => o.setName("user").setRequired(true).setDescription("User")),
 
-/* ================= READY EVENT ================= */
+  new SlashCommandBuilder()
+    .setName("giveaway")
+    .setDescription("Start a giveaway")
+    .addIntegerOption(o => o.setName("duration").setRequired(true).setDescription("Seconds"))
+    .addStringOption(o => o.setName("prize").setRequired(true).setDescription("Prize"))
+];
 
-client.once("ready", async () => {
-  console.log(`🚀 ${client.user.tag} is online`);
+const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-  const commands = [
-    new SlashCommandBuilder()
-      .setName("announcement")
-      .setDescription("Send announcement")
-      .addStringOption(opt =>
-        opt.setName("message").setDescription("Message").setRequired(true)
-      )
-      .addChannelOption(opt =>
-        opt.setName("channel").setDescription("Channel").setRequired(true)
-      ),
+(async () => {
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+  console.log("✅ Slash Commands Registered");
+})();
 
-    new SlashCommandBuilder()
-      .setName("vouch")
-      .setDescription("Create vouch")
-      .addUserOption(opt =>
-        opt.setName("seller").setDescription("Seller").setRequired(true)
-      )
-      .addStringOption(opt =>
-        opt.setName("product").setDescription("Product").setRequired(true)
-      )
-      .addStringOption(opt =>
-        opt.setName("price").setDescription("Price").setRequired(true)
-      )
-      .addIntegerOption(opt =>
-        opt.setName("rating").setDescription("1-5").setRequired(true)
-      )
-      .addStringOption(opt =>
-        opt.setName("reason").setDescription("Reason").setRequired(false)
-      )
-      .addAttachmentOption(opt =>
-        opt.setName("image").setDescription("Proof Image")
-      ),
+client.once("ready", () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+});
 
-    new SlashCommandBuilder()
-      .setName("ticketpanel")
-      .setDescription("Create ticket panel"),
 
-    new SlashCommandBuilder()
-      .setName("close")
-      .setDescription("Close ticket")
-  ];
+// ================= AUTO MOD =================
 
-  const rest = new REST({ version: "10" }).setToken(TOKEN.trim());
+const spamMap = new Map();
+const badWords = ["badword1","badword2"];
 
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: commands.map(cmd => cmd.toJSON()) }
-    );
-    console.log("✅ Slash commands registered");
-  } catch (err) {
-    console.error("❌ Slash command error:", err.message);
+client.on("messageCreate", async message => {
+  if (message.author.bot) return;
+
+  // Anti Link
+  if (message.content.includes("http")) {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+      await message.delete().catch(()=>{});
+      message.channel.send(`${message.author}, links are not allowed.`);
+    }
   }
+
+  // Bad Word
+  if (badWords.some(w => message.content.toLowerCase().includes(w))) {
+    await message.delete().catch(()=>{});
+    message.channel.send(`${message.author}, watch your language.`);
+  }
+
+  // Anti Spam
+  const now = Date.now();
+  const userData = spamMap.get(message.author.id) || { count: 0, last: now };
+
+  if (now - userData.last < 5000) {
+    userData.count++;
+    if (userData.count >= 5) {
+      await message.member.timeout(10000).catch(()=>{});
+      message.channel.send(`${message.author} muted for spam.`);
+      userData.count = 0;
+    }
+  } else {
+    userData.count = 1;
+  }
+
+  userData.last = now;
+  spamMap.set(message.author.id, userData);
 });
 
-/* ================= INTERACTIONS ================= */
+
+// ================= INTERACTIONS =================
 
 client.on("interactionCreate", async interaction => {
+
+  // ===== SLASH COMMANDS =====
   if (interaction.isChatInputCommand()) {
 
-    if (interaction.commandName === "announcement") {
-      const msg = interaction.options.getString("message");
-      const channel = interaction.options.getChannel("channel");
+    // ---------------- TICKET PANEL ----------------
+    if (interaction.commandName === "ticketpanel") {
 
       const embed = new EmbedBuilder()
-        .setTitle("📢 Announcement")
-        .setDescription(msg)
-        .setColor("Blue")
-        .setTimestamp();
+        .setColor("#2b2d31")
+        .setTitle("Tec Trader | TICKETS")
+        .setDescription(
+          "**🚨 ATTENTION!**\n" +
+          "➤ Do not open a TICKET without a valid reason.\n" +
+          "➤ Read our #📋・tos to avoid warnings or bans.\n\n" +
+          "By Tec Trader"
+        );
 
-      await channel.send({ embeds: [embed] });
-      return interaction.reply({ content: "✅ Announcement sent!", ephemeral: true });
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("nitro").setLabel("Nitro").setEmoji("💎").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("boost").setLabel("Server Boost").setEmoji("🚀").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("account").setLabel("Account").setEmoji("🌐").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("entertainment").setLabel("Entertainment").setEmoji("🎬").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("other").setLabel("Other").setEmoji("🔄").setStyle(ButtonStyle.Secondary)
+      );
+
+      return interaction.reply({ embeds:[embed], components:[row] });
     }
 
+    // ---------------- VOUCH ----------------
     if (interaction.commandName === "vouch") {
-      const seller = interaction.options.getUser("seller");
+
       const product = interaction.options.getString("product");
       const price = interaction.options.getString("price");
+      const seller = interaction.options.getString("seller");
       const rating = interaction.options.getInteger("rating");
-      const reason = interaction.options.getString("reason") || "No reason provided.";
-      const image = interaction.options.getAttachment("image");
+      const reason = interaction.options.getString("reason");
 
-      const id = uuidv4().slice(0, 8);
-
-      if (!reps[seller.id]) reps[seller.id] = 0;
-      reps[seller.id] += 1;
-      fs.writeFileSync("./data/reps.json", JSON.stringify(reps, null, 2));
+      const stars = "⭐".repeat(rating);
+      const vouchID = crypto.randomBytes(3).toString("hex").toUpperCase();
 
       const embed = new EmbedBuilder()
-        .setTitle("⭐ New Vouch Recorded!")
+        .setColor("#ff00aa")
+        .setTitle("💬 • New Vouch Recorded!")
+        .setThumbnail(LOGO_URL)
         .addFields(
-          { name: "Product", value: product, inline: true },
-          { name: "Price", value: price, inline: true },
-          { name: "Seller", value: `<@${seller.id}>`, inline: true },
-          { name: "Rating", value: "⭐".repeat(rating), inline: true },
-          { name: "Reason", value: reason }
+          { name:"🛒 Product", value:`Paramount +`, inline:true },
+          { name:"💲 Price", value:`${price}`, inline:true },
+          { name:"👤 Seller", value:`${seller}`, inline:true },
+          { name:"⭐ Rating", value:`${stars} (${rating}/5)` },
+          { name:"📝 Reason", value:`${reason}` },
+          { name:"🙌 Vouched By", value:`${interaction.user}`, inline:true },
+          { name:"🆔 Vouch ID", value:`${vouchID}`, inline:true },
+          { name:"⏰ Timestamp", value:`<t:${Math.floor(Date.now()/1000)}:R>`, inline:true }
         )
-        .setFooter({ text: `Vouch ID: ${id}` })
+        .setFooter({ text:"Tec Trader" })
         .setTimestamp();
 
-      if (image) embed.setImage(image.url);
-
-      return interaction.reply({ embeds: [embed] });
+      return interaction.reply({ embeds:[embed] });
     }
 
-    if (interaction.commandName === "ticketpanel") {
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId("ticket_menu")
-        .setPlaceholder("Select ticket type")
-        .addOptions([
-          { label: "Product not received", value: "not_received" },
-          { label: "Support", value: "support" },
-          { label: "Replace", value: "replace" },
-          { label: "Purchase", value: "purchase" }
-        ]);
+    // ---------------- MODERATION ----------------
+    if (interaction.commandName === "ban") {
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
+        return interaction.reply({content:"No permission",ephemeral:true});
+      const user = interaction.options.getMember("user");
+      await user.ban();
+      return interaction.reply(`🔨 Banned ${user.user.tag}`);
+    }
 
-      const row = new ActionRowBuilder().addComponents(menu);
+    if (interaction.commandName === "kick") {
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
+        return interaction.reply({content:"No permission",ephemeral:true});
+      const user = interaction.options.getMember("user");
+      await user.kick();
+      return interaction.reply(`👢 Kicked ${user.user.tag}`);
+    }
+
+    if (interaction.commandName === "warn") {
+      const user = interaction.options.getUser("user");
+      return interaction.reply(`⚠️ ${user.tag} has been warned.`);
+    }
+
+    // ---------------- GIVEAWAY ----------------
+    if (interaction.commandName === "giveaway") {
+
+      const duration = interaction.options.getInteger("duration");
+      const prize = interaction.options.getString("prize");
 
       const embed = new EmbedBuilder()
-        .setTitle("🎫 Support System")
-        .setDescription("Select an option below")
-        .setColor("Purple");
+        .setTitle("🎉 GIVEAWAY")
+        .setDescription(`Prize: **${prize}**\nReact with 🎉 to enter!\nEnds in ${duration}s`)
+        .setColor("Gold");
 
-      return interaction.reply({ embeds: [embed], components: [row] });
+      const msg = await interaction.reply({ embeds:[embed], fetchReply:true });
+      await msg.react("🎉");
+
+      setTimeout(async ()=>{
+        const fetched = await msg.fetch();
+        const users = await fetched.reactions.cache.get("🎉").users.fetch();
+        const winner = users.filter(u=>!u.bot).random();
+        if(!winner) return interaction.followUp("No valid participants.");
+        interaction.followUp(`🎉 Winner: ${winner}`);
+      }, duration*1000);
     }
 
-    if (interaction.commandName === "close") {
-      if (!interaction.channel.name.startsWith("ticket-"))
-        return interaction.reply({ content: "❌ Not a ticket!", ephemeral: true });
-
-      const attachment = await transcripts.createTranscript(interaction.channel);
-      await interaction.channel.send({ files: [attachment] });
-
-      setTimeout(() => interaction.channel.delete(), 3000);
-    }
   }
 
-  if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === "ticket_menu") {
-      const guild = interaction.guild;
+  // ===== BUTTONS =====
+  if (interaction.isButton()) {
 
-      const channel = await guild.channels.create({
-        name: `ticket-${interaction.user.username}`,
-        type: ChannelType.GuildText,
-        permissionOverwrites: [
-          {
-            id: guild.roles.everyone,
-            deny: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: interaction.user.id,
-            allow: [PermissionsBitField.Flags.ViewChannel]
-          }
+    if (["nitro","boost","account","entertainment","other"].includes(interaction.customId)) {
+
+      const channel = await interaction.guild.channels.create({
+        name:`ticket-${interaction.user.username}`,
+        type:ChannelType.GuildText,
+        parent:CATEGORY_ID,
+        permissionOverwrites:[
+          {id:interaction.guild.id, deny:[PermissionsBitField.Flags.ViewChannel]},
+          {id:interaction.user.id, allow:[PermissionsBitField.Flags.ViewChannel]},
+          {id:STAFF_ROLE_ID, allow:[PermissionsBitField.Flags.ViewChannel]}
         ]
       });
 
-      await channel.send(`Hello <@${interaction.user.id}> support will be with you shortly.`);
-      return interaction.reply({ content: `✅ Ticket created: ${channel}`, ephemeral: true });
+      const closeBtn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("close_ticket")
+          .setLabel("Close Ticket")
+          .setEmoji("🔒")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      channel.send({content:`${interaction.user} <@&${STAFF_ROLE_ID}>`,components:[closeBtn]});
+      interaction.reply({content:`Ticket created: ${channel}`,ephemeral:true});
     }
+
+    if (interaction.customId === "close_ticket") {
+
+      const messages = await interaction.channel.messages.fetch({limit:100});
+      const transcript = messages.map(m=>`${m.author.tag}: ${m.content}`).reverse().join("\n");
+
+      await interaction.user.send({
+        embeds:[new EmbedBuilder()
+          .setTitle("📄 Ticket Transcript")
+          .setDescription("```"+transcript.slice(0,4000)+"```")]
+      }).catch(()=>{});
+
+      await interaction.reply("Closing ticket...");
+      setTimeout(()=>interaction.channel.delete(),3000);
+    }
+
   }
+
 });
 
-/* ================= PREFIX COMMANDS ================= */
-
-client.on("messageCreate", async message => {
-  if (!message.content.startsWith(config.prefix) || message.author.bot) return;
-
-  const args = message.content.slice(config.prefix.length).trim().split(/ +/);
-  const cmd = args.shift().toLowerCase();
-
-  if (cmd === "ping") return message.reply("🏓 Pong!");
-
-  if (cmd === "clear") {
-    const amount = parseInt(args[0]);
-    if (!amount) return;
-    await message.channel.bulkDelete(amount);
-  }
-
-  if (cmd === "ban") {
-    const member = message.mentions.members.first();
-    if (member) await member.ban();
-  }
-
-  if (cmd === "kick") {
-    const member = message.mentions.members.first();
-    if (member) await member.kick();
-  }
-
-  if (cmd === "help") {
-    message.reply("Commands: !ban !kick !clear !ping");
-  }
-});
-
-/* ================= LOGIN ================= */
-
-client.login(TOKEN.trim())
-  .then(() => console.log("✅ Bot login successful"))
-  .catch(err => {
-    console.error("❌ Login Failed:", err.message);
-  });
+client.login(TOKEN);
