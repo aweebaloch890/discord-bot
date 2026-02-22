@@ -1,23 +1,17 @@
 {
   "name": "advanced-discord-bot",
   "version": "1.0.0",
-  "description": "Advanced Ticket, Moderation, Vouch Discord Bot",
+  "description": "Advanced Ticket Discord Bot",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
-  },
-  "author": "Tec Trader",
-  "license": "ISC",
-  "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.3"
+    "start": "node index.js"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
   }
 }
