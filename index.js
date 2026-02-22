@@ -18,10 +18,10 @@ const {
 const fs = require("fs");
 const http = require("http");
 
-const PANEL_CHANNEL_ID = "PUT_PANEL_CHANNEL_ID";
-const STAFF_ROLE_ID = "PUT_STAFF_ROLE_ID";
-const OPEN_CATEGORY_ID = "PUT_OPEN_CATEGORY_ID";
-const CLOSED_CATEGORY_ID = "PUT_CLOSED_CATEGORY_ID";
+const PANEL_CHANNEL_ID = "1337266092812406844";
+const STAFF_ROLE_ID = "1397441836330651798";
+const OPEN_CATEGORY_ID = "1337265672597672079";
+const CLOSED_CATEGORY_ID = "1407037252609118328";
 
 const client = new Client({
     intents: [
