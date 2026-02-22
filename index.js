@@ -72,7 +72,19 @@ return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
 const embed = new EmbedBuilder()
 .setTitle("TEC TRADER")
 .setColor(0x2b2d31)
-.setDescription("Select ticket category below.");
+.setDescription(`
+Welcome to TEC TRADER Support!
+
+Please select the appropriate ticket category from the menu below so our team can assist you quickly and efficiently.
+
+Before opening a ticket:
+• Make sure your issue has not already been resolved.
+• Do not open multiple tickets for the same issue.
+• Provide clear and complete details about your problem.
+• Be patient while waiting for a response from our support team.
+
+Our staff will respond as soon as possible.
+`);
 
 const select = new StringSelectMenuBuilder()
 .setCustomId("ticket_select")
@@ -264,3 +276,4 @@ interaction.reply({ content: "Error handled safely ✅", ephemeral: true }).catc
 http.createServer((req,res)=>{res.end("Running");}).listen(process.env.PORT||3000);
 
 client.login(process.env.TOKEN);
+
