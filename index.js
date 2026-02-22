@@ -35,7 +35,8 @@ intents: [
 GatewayIntentBits.Guilds,
 GatewayIntentBits.GuildMessages,
 GatewayIntentBits.MessageContent,
-GatewayIntentBits.GuildMembers
+GatewayIntentBits.GuildMembers,
+GatewayIntentBits.DirectMessages
 ],
 partials: [Partials.Channel]
 });
@@ -50,22 +51,7 @@ client.once("clientReady", async () => {
 console.log(`Logged in as ${client.user.tag}`);
 
 await client.application.commands.set([
-{ name: "ticketpanel", description: "Send ticket panel" },
-{
-name: "vouch",
-description: "Create vouch",
-options: [
-{ name: "user", description: "Seller", type: ApplicationCommandOptionType.User, required: true },
-{ name: "product", description: "Product Name", type: ApplicationCommandOptionType.String, required: true },
-{ name: "price", description: "Price", type: ApplicationCommandOptionType.String, required: true },
-{ name: "rating", description: "Rating 1-5", type: ApplicationCommandOptionType.Integer, required: true, minValue: 1, maxValue: 5 },
-{ name: "reason", description: "Reason", type: ApplicationCommandOptionType.String, required: true }
-]
-},
-{ name: "kick", description: "Kick user", options: [{ name: "user", description: "Select user", type: ApplicationCommandOptionType.User, required: true }] },
-{ name: "ban", description: "Ban user", options: [{ name: "user", description: "Select user", type: ApplicationCommandOptionType.User, required: true }] },
-{ name: "unban", description: "Unban user", options: [{ name: "userid", description: "User ID", type: ApplicationCommandOptionType.String, required: true }] },
-{ name: "timeout", description: "Timeout user", options: [{ name: "user", description: "Select user", type: ApplicationCommandOptionType.User, required: true }] }
+{ name: "ticketpanel", description: "Send ticket panel" }
 ]);
 
 console.log("Slash Commands Registered ✅");
@@ -86,19 +72,7 @@ return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
 const embed = new EmbedBuilder()
 .setTitle("TEC TRADER")
 .setColor(0x2b2d31)
-.setDescription(`
-Welcome to TEC TRADER Support!
-
-Please select the appropriate ticket category from the menu below so our team can assist you quickly and efficiently.
-
-Before opening a ticket:
-• Make sure your issue has not already been resolved.
-• Do not open multiple tickets for the same issue.
-• Provide clear and complete details about your problem.
-• Be patient while waiting for a response from our support team.
-
-Our staff will respond as soon as possible.
-`);
+.setDescription("Select ticket category below.");
 
 const select = new StringSelectMenuBuilder()
 .setCustomId("ticket_select")
@@ -117,7 +91,7 @@ components: [new ActionRowBuilder().addComponents(select)]
 }
 }
 
-// ================= SELECT MENU → SHOW MODAL =================
+// ================= SELECT → MODAL =================
 if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
 
 const type = interaction.values[0];
@@ -126,7 +100,6 @@ const modal = new ModalBuilder()
 .setTitle(`${type.toUpperCase()} FORM`);
 
 if (type === "purchase") {
-
 modal.addComponents(
 new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
@@ -138,11 +111,9 @@ new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("details").setLabel("Extra Details").setStyle(TextInputStyle.Paragraph).setRequired(false)
 )
 );
-
 }
 
 if (type === "replacement") {
-
 modal.addComponents(
 new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
@@ -160,11 +131,9 @@ new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("screenshot").setLabel("Screenshot Link").setStyle(TextInputStyle.Short).setRequired(false)
 )
 );
-
 }
 
 if (type === "notreceived") {
-
 modal.addComponents(
 new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
@@ -179,23 +148,20 @@ new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("proof").setLabel("Proof Screenshot Link").setStyle(TextInputStyle.Short).setRequired(false)
 )
 );
-
 }
 
 if (type === "other") {
-
 modal.addComponents(
 new ActionRowBuilder().addComponents(
 new TextInputBuilder().setCustomId("help").setLabel("How can we help you?").setStyle(TextInputStyle.Paragraph).setRequired(true)
 )
 );
-
 }
 
 return interaction.showModal(modal);
 }
 
-// ================= MODAL SUBMIT → CREATE TICKET =================
+// ================= MODAL SUBMIT =================
 if (interaction.isModalSubmit()) {
 
 await interaction.deferReply({ ephemeral: true });
@@ -217,10 +183,10 @@ permissionOverwrites: [
 ]
 });
 
-const fields = interaction.fields.fields.map(f => ({
-name: f.customId.toUpperCase(),
-value: f.value
-}));
+let fields = [];
+interaction.fields.fields.forEach(f => {
+fields.push({ name: f.customId.toUpperCase(), value: f.value });
+});
 
 const embed = new EmbedBuilder()
 .setColor(0x2b2d31)
@@ -249,26 +215,41 @@ if (interaction.customId === "claim") {
 if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
 return interaction.reply({ content: "Staff Only ❌", ephemeral: true });
 
-await interaction.reply(`Ticket claimed by <@${interaction.user.id}>`);
+return interaction.reply(`Ticket claimed by <@${interaction.user.id}>`);
 }
 
 if (interaction.customId === "close") {
 
-if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
-return interaction.reply({ content: "Staff Only ❌", ephemeral: true });
+// Allow user OR staff
+const isStaff = interaction.member.roles.cache.has(STAFF_ROLE_ID);
+const channel = interaction.channel;
 
-const messages = await interaction.channel.messages.fetch({ limit: 100 });
+const messages = await channel.messages.fetch({ limit: 100 });
 let transcript = "";
 messages.reverse().forEach(m => {
 transcript += `[${m.author.tag}] ${m.content}\n`;
 });
 
-fs.writeFileSync(`./transcript-${interaction.channel.name}.txt`, transcript);
+fs.writeFileSync(`./transcript-${channel.name}.txt`, transcript);
 
-await interaction.channel.setParent(CLOSED_CATEGORY_ID);
-await interaction.channel.setName(`closed-${interaction.channel.name}`);
+// Send transcript to user DM
+const userId = channel.permissionOverwrites.cache
+.find(p => p.type === 1 && p.allow.has(PermissionsBitField.Flags.ViewChannel))?.id;
 
-await interaction.reply("Ticket Closed & Transcript Saved ✅");
+if (userId) {
+const user = await client.users.fetch(userId).catch(()=>{});
+if (user) {
+await user.send({
+content: `Your ticket ${channel.name} has been closed.\nHere is the transcript:`,
+files: [`./transcript-${channel.name}.txt`]
+}).catch(()=>{});
+}
+}
+
+await channel.setParent(CLOSED_CATEGORY_ID);
+await channel.setName(`closed-${channel.name}`);
+
+return interaction.reply("Ticket Closed & Transcript Sent ✅");
 }
 }
 
@@ -276,29 +257,6 @@ await interaction.reply("Ticket Closed & Transcript Saved ✅");
 console.log(err);
 if (!interaction.replied)
 interaction.reply({ content: "Error handled safely ✅", ephemeral: true }).catch(()=>{});
-}
-});
-
-// ================= ANTI LINK + SPAM =================
-const spam = new Map();
-client.on("messageCreate", async msg => {
-
-if (!msg.guild || msg.author.bot) return;
-if (msg.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-if (/https?:\/\/|discord\.gg/i.test(msg.content)) {
-await msg.delete().catch(()=>{});
-await msg.member.timeout(AUTO_TIMEOUT).catch(()=>{});
-}
-
-const now = Date.now();
-const data = spam.get(msg.author.id) || [];
-data.push(now);
-spam.set(msg.author.id, data.filter(t => now - t < SPAM_TIME));
-
-if (spam.get(msg.author.id).length >= SPAM_LIMIT) {
-await msg.member.timeout(AUTO_TIMEOUT).catch(()=>{});
-spam.delete(msg.author.id);
 }
 });
 
