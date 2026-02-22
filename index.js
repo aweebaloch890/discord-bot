@@ -30,8 +30,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.GuildMembers
     ],
     partials: [Partials.Channel]
 });
@@ -51,88 +50,15 @@ client.once("clientReady", async () => {
 
     await client.application.commands.set([
         { name: "ticketpanel", description: "Send ticket panel" },
-
-        { 
-            name: "vouch", 
+        {
+            name: "vouch",
             description: "Give vouch",
             options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                },
-                { 
-                    name: "message", 
-                    description: "Write vouch message", 
-                    type: 3, 
-                    required: true 
-                }
-            ]
-        },
-
-        { 
-            name: "vouches", 
-            description: "Check vouches",
-            options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                }
-            ]
-        },
-
-        { 
-            name: "mute", 
-            description: "Mute user",
-            options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                }
-            ]
-        },
-
-        { 
-            name: "timeout", 
-            description: "Timeout user",
-            options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                }
-            ]
-        },
-
-        { 
-            name: "kick", 
-            description: "Kick user",
-            options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                }
-            ]
-        },
-
-        { 
-            name: "ban", 
-            description: "Ban user",
-            options: [
-                { 
-                    name: "user", 
-                    description: "Select a user", 
-                    type: 6, 
-                    required: true 
-                }
+                { name: "user", description: "Select user", type: 6, required: true },
+                { name: "product", description: "Product Name", type: 3, required: true },
+                { name: "price", description: "Price", type: 3, required: true },
+                { name: "rating", description: "Rating (1-5)", type: 4, required: true },
+                { name: "reason", description: "Reason", type: 3, required: true }
             ]
         }
     ]);
@@ -143,16 +69,15 @@ client.once("clientReady", async () => {
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
 
-    // ===== SLASH COMMANDS =====
+    // ===== SLASH =====
     if (interaction.isChatInputCommand()) {
 
-        // ===== PANEL =====
         if (interaction.commandName === "ticketpanel") {
             if (interaction.channelId !== PANEL_CHANNEL_ID)
                 return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
 
             const embed = new EmbedBuilder()
-                .setTitle("TEC TRADER")
+                .setTitle("🎟 TEC TRADER Support")
                 .setColor(0x2b2d31)
                 .setDescription("Select ticket type below");
 
@@ -162,7 +87,7 @@ client.on("interactionCreate", async interaction => {
                 .addOptions(
                     { label: "Purchase", value: "purchase", emoji: "🛒" },
                     { label: "Replacement", value: "replace", emoji: "🔁" },
-                    { label: "Product not received", value: "notreceived", emoji: "🚫" },
+                    { label: "Not Received", value: "notreceived", emoji: "❌" },
                     { label: "Other", value: "other", emoji: "🌐" }
                 );
 
@@ -172,87 +97,180 @@ client.on("interactionCreate", async interaction => {
             });
         }
 
-        // ===== MODERATION =====
-        const member = interaction.options.getMember("user");
-
-        if (interaction.commandName === "mute" || interaction.commandName === "timeout") {
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
-                return interaction.reply({ content: "No permission ❌", ephemeral: true });
-
-            await member.timeout(5 * 60 * 1000);
-            return interaction.reply(`🔇 ${member.user.tag} muted`);
-        }
-
-        if (interaction.commandName === "kick") {
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
-                return interaction.reply({ content: "No permission ❌", ephemeral: true });
-
-            await member.kick();
-            return interaction.reply(`👢 ${member.user.tag} kicked`);
-        }
-
-        if (interaction.commandName === "ban") {
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
-                return interaction.reply({ content: "No permission ❌", ephemeral: true });
-
-            await member.ban();
-            return interaction.reply(`⛔ ${member.user.tag} banned`);
-        }
-
         // ===== VOUCH =====
         if (interaction.commandName === "vouch") {
+
             const user = interaction.options.getUser("user");
-            const msg = interaction.options.getString("message");
+            const product = interaction.options.getString("product");
+            const price = interaction.options.getString("price");
+            const rating = interaction.options.getInteger("rating");
+            const reason = interaction.options.getString("reason");
 
-            if (!vouchData.users[user.id]) vouchData.users[user.id] = [];
-            vouchData.users[user.id].push({
-                from: interaction.user.tag,
-                msg,
-                date: new Date().toLocaleString()
-            });
+            const stars = "⭐".repeat(Math.min(rating, 5));
 
-            fs.writeFileSync("./vouches.json", JSON.stringify(vouchData, null, 2));
-            return interaction.reply(`✅ Vouch added for ${user.tag}`);
-        }
+            const embed = new EmbedBuilder()
+                .setColor(0x2b2d31)
+                .setTitle("📝 New Vouch Recorded!")
+                .addFields(
+                    { name: "🛍 Product", value: product },
+                    { name: "💰 Price", value: price },
+                    { name: "👤 Seller", value: `<@${user.id}>` },
+                    { name: "⭐ Rating", value: `${stars} (${rating}/5)` },
+                    { name: "📌 Reason", value: reason }
+                );
 
-        if (interaction.commandName === "vouches") {
-            const user = interaction.options.getUser("user");
-            const list = vouchData.users[user.id] || [];
-
-            if (!list.length) return interaction.reply("No vouches.");
-
-            return interaction.reply({
-                embeds: [new EmbedBuilder()
-                    .setTitle(`${user.username} Vouches`)
-                    .setDescription(list.map(v => `• ${v.msg} — ${v.from}`).join("\n"))
-                ]
-            });
+            return interaction.reply({ embeds: [embed] });
         }
     }
 
-    // ===== DROPDOWN =====
+    // ===== SELECT MENU =====
     if (interaction.isStringSelectMenu()) {
-        const modal = new ModalBuilder()
-            .setCustomId(`modal_${interaction.values[0]}`)
-            .setTitle("Ticket Form")
-            .addComponents(
+
+        // 🛒 PURCHASE
+        if (interaction.values[0] === "purchase") {
+
+            const modal = new ModalBuilder()
+                .setCustomId("modal_purchase")
+                .setTitle("🛒 Purchase Form");
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("product")
+                        .setLabel("Product Name")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("payment")
+                        .setLabel("Payment Method (JazzCash/Easypaisa/Bank/Crypto)")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
                 new ActionRowBuilder().addComponents(
                     new TextInputBuilder()
                         .setCustomId("details")
-                        .setLabel("Provide required details")
+                        .setLabel("Extra Details")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(false)
+                )
+            );
+
+            return interaction.showModal(modal);
+        }
+
+        // 🔁 REPLACEMENT
+        if (interaction.values[0] === "replace") {
+
+            const modal = new ModalBuilder()
+                .setCustomId("modal_replace")
+                .setTitle("🔁 Replacement Form");
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("product")
+                        .setLabel("Product Name")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("orderid")
+                        .setLabel("Order ID")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("transaction")
+                        .setLabel("Transaction ID")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("problem")
+                        .setLabel("Problem Description + Screenshot Link")
                         .setStyle(TextInputStyle.Paragraph)
                         .setRequired(true)
                 )
             );
-        return interaction.showModal(modal);
+
+            return interaction.showModal(modal);
+        }
+
+        // ❌ NOT RECEIVED
+        if (interaction.values[0] === "notreceived") {
+
+            const modal = new ModalBuilder()
+                .setCustomId("modal_notreceived")
+                .setTitle("❌ Not Received Form");
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("product")
+                        .setLabel("Product Name")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("payment")
+                        .setLabel("Payment Method")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("transaction")
+                        .setLabel("Transaction ID")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                ),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("proof")
+                        .setLabel("Proof Screenshot Link")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(true)
+                )
+            );
+
+            return interaction.showModal(modal);
+        }
+
+        // 🌐 OTHER
+        if (interaction.values[0] === "other") {
+
+            const modal = new ModalBuilder()
+                .setCustomId("modal_other")
+                .setTitle("🌐 Other Support");
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("help")
+                        .setLabel("How can I help you?")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(true)
+                )
+            );
+
+            return interaction.showModal(modal);
+        }
     }
 
     // ===== MODAL SUBMIT =====
     if (interaction.isModalSubmit()) {
+
         ticketData.count++;
         fs.writeFileSync("./tickets.json", JSON.stringify(ticketData));
 
         const number = String(ticketData.count).padStart(2, "0");
+
         const channel = await interaction.guild.channels.create({
             name: `ticket-${number}`,
             type: ChannelType.GuildText,
@@ -269,77 +287,21 @@ client.on("interactionCreate", async interaction => {
             new ButtonBuilder().setCustomId("claim").setLabel("👮 Claim").setStyle(ButtonStyle.Primary)
         );
 
+        const data = interaction.fields.fields.map(f => `**${f.customId.toUpperCase()}**: ${f.value}`).join("\n");
+
         await channel.send({
             content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
             embeds: [new EmbedBuilder()
+                .setColor(0x2b2d31)
                 .setTitle(`Ticket #${number}`)
-                .setDescription(interaction.fields.getTextInputValue("details"))
+                .setDescription(data)
             ],
             components: [buttons]
         });
 
-        return interaction.reply({ content: `Ticket created ${channel}`, ephemeral: true });
+        return interaction.reply({ content: `✅ Ticket created: ${channel}`, ephemeral: true });
     }
 
-    // ===== BUTTONS =====
-    if (interaction.isButton()) {
-        const channel = interaction.channel;
-
-        if (interaction.customId === "claim") {
-            await channel.send(`👮 Claimed by ${interaction.user}`);
-            return interaction.reply({ content: "Claimed", ephemeral: true });
-        }
-
-        if (interaction.customId === "close") {
-            const msgs = await channel.messages.fetch({ limit: 100 });
-            let transcript = msgs.map(m => `[${m.author.tag}] ${m.content}`).join("\n");
-
-            fs.writeFileSync("transcript.txt", transcript);
-            await interaction.user.send({ files: ["transcript.txt"] }).catch(()=>{});
-            fs.unlinkSync("transcript.txt");
-
-            await channel.setParent(CLOSED_CATEGORY_ID);
-            await channel.setName(`closed-${channel.name}`);
-
-            if (interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                await channel.send(
-                    new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("reopen").setLabel("🔓 Reopen").setStyle(ButtonStyle.Success)
-                    )
-                );
-            }
-            return interaction.reply("Ticket closed");
-        }
-
-        if (interaction.customId === "reopen") {
-            await channel.setParent(OPEN_CATEGORY_ID);
-            await channel.setName(channel.name.replace("closed-", ""));
-            return interaction.reply("Ticket reopened");
-        }
-    }
-});
-
-// ================= ANTI LINK + SPAM =================
-const spam = new Map();
-client.on("messageCreate", async msg => {
-    if (msg.author.bot) return;
-
-    if (/https?:\/\//.test(msg.content)) {
-        if (!msg.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            await msg.delete().catch(()=>{});
-        }
-    }
-
-    if (!spam.has(msg.author.id)) {
-        spam.set(msg.author.id, 1);
-        setTimeout(() => spam.delete(msg.author.id), 5000);
-    } else {
-        spam.set(msg.author.id, spam.get(msg.author.id) + 1);
-        if (spam.get(msg.author.id) >= 6) {
-            await msg.member.timeout(5 * 60000).catch(()=>{});
-            spam.delete(msg.author.id);
-        }
-    }
 });
 
 // ================= KEEP ALIVE =================
