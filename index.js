@@ -12,7 +12,8 @@ const {
     StringSelectMenuBuilder,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    ApplicationCommandOptionType
 } = require("discord.js");
 
 const fs = require("fs");
@@ -45,28 +46,107 @@ let ticketData = fs.existsSync("./tickets.json")
     : { count: 0 };
 
 // ================= READY =================
-client.once("clientReady", async () => {
+client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     await client.application.commands.set([
-        { name: "ticketpanel", description: "Send ticket panel" },
+
+        {
+            name: "ticketpanel",
+            description: "Send ticket panel"
+        },
 
         {
             name: "vouch",
             description: "Create vouch",
             options: [
-                { name: "user", type: 6, description: "Seller", required: true },
-                { name: "product", type: 3, description: "Product Name", required: true },
-                { name: "price", type: 3, description: "Price", required: true },
-                { name: "rating", type: 4, description: "Rating 1-5", required: true },
-                { name: "reason", type: 3, description: "Reason", required: true }
+                {
+                    name: "user",
+                    description: "Select seller",
+                    type: ApplicationCommandOptionType.User,
+                    required: true
+                },
+                {
+                    name: "product",
+                    description: "Product Name",
+                    type: ApplicationCommandOptionType.String,
+                    required: true
+                },
+                {
+                    name: "price",
+                    description: "Product Price",
+                    type: ApplicationCommandOptionType.String,
+                    required: true
+                },
+                {
+                    name: "rating",
+                    description: "Rating 1-5",
+                    type: ApplicationCommandOptionType.Integer,
+                    required: true,
+                    minValue: 1,
+                    maxValue: 5
+                },
+                {
+                    name: "reason",
+                    description: "Reason for vouch",
+                    type: ApplicationCommandOptionType.String,
+                    required: true
+                }
             ]
         },
 
-        { name: "kick", description: "Kick user", options: [{ name: "user", type: 6, required: true }] },
-        { name: "ban", description: "Ban user", options: [{ name: "user", type: 6, required: true }] },
-        { name: "unban", description: "Unban user", options: [{ name: "userid", type: 3, required: true }] },
-        { name: "timeout", description: "Timeout user", options: [{ name: "user", type: 6, required: true }] }
+        {
+            name: "kick",
+            description: "Kick a member",
+            options: [
+                {
+                    name: "user",
+                    description: "Select user to kick",
+                    type: ApplicationCommandOptionType.User,
+                    required: true
+                }
+            ]
+        },
+
+        {
+            name: "ban",
+            description: "Ban a member",
+            options: [
+                {
+                    name: "user",
+                    description: "Select user to ban",
+                    type: ApplicationCommandOptionType.User,
+                    required: true
+                }
+            ]
+        },
+
+        {
+            name: "unban",
+            description: "Unban a user",
+            options: [
+                {
+                    name: "userid",
+                    description: "Enter user ID to unban",
+                    type: ApplicationCommandOptionType.String,
+                    required: true
+                }
+            ]
+        },
+
+        {
+            name: "timeout",
+            description: "Timeout a member",
+            options: [
+                {
+                    name: "user",
+                    description: "Select user to timeout",
+                    type: ApplicationCommandOptionType.User,
+                    required: true
+                }
+            ]
+        }
+
     ]);
 
     console.log("Slash Commands Registered ✅");
@@ -76,7 +156,6 @@ client.once("clientReady", async () => {
 client.on("interactionCreate", async interaction => {
 try {
 
-// ===== SLASH COMMANDS =====
 if (interaction.isChatInputCommand()) {
 
 if (interaction.commandName === "ticketpanel") {
@@ -105,17 +184,13 @@ components: [new ActionRowBuilder().addComponents(select)]
 });
 }
 
-// ===== VOUCH SYSTEM =====
 if (interaction.commandName === "vouch") {
 
 const user = interaction.options.getUser("user");
 const product = interaction.options.getString("product");
 const price = interaction.options.getString("price");
-let rating = interaction.options.getInteger("rating");
+const rating = interaction.options.getInteger("rating");
 const reason = interaction.options.getString("reason");
-
-if (rating > 5) rating = 5;
-if (rating < 1) rating = 1;
 
 const stars = "⭐".repeat(rating);
 const vouchID = Math.random().toString(36).substring(2,8).toUpperCase();
@@ -126,8 +201,8 @@ const embed = new EmbedBuilder()
 .addFields(
 { name: "🛒 Product", value: product, inline: true },
 { name: "💲 Price", value: price, inline: true },
-{ name: "👤 Seller", value: `<@${user.id}>`, inline: false },
-{ name: "⭐ Rating", value: `${stars} (${rating}/5)`, inline: false },
+{ name: "👤 Seller", value: `<@${user.id}>` },
+{ name: "⭐ Rating", value: `${stars} (${rating}/5)` },
 { name: "📝 Reason", value: reason },
 { name: "🔖 Vouched By", value: `<@${interaction.user.id}>`, inline: true },
 { name: "🆔 Vouch ID", value: vouchID, inline: true }
@@ -136,7 +211,7 @@ const embed = new EmbedBuilder()
 return interaction.reply({ embeds: [embed] });
 }
 
-// ===== MODERATION =====
+// ===== ADMIN CHECK =====
 if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator))
 return interaction.reply({ content: "Admin Only ❌", ephemeral: true });
 
@@ -162,22 +237,7 @@ const id = interaction.options.getString("userid");
 await interaction.guild.members.unban(id).catch(()=>{});
 return interaction.reply("User Unbanned ✅");
 }
-}
 
-// ===== TICKET CLOSE FIX =====
-if (interaction.isButton()) {
-
-if (interaction.customId === "close") {
-
-await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
-ViewChannel: false
-}).catch(()=>{});
-
-await interaction.channel.setParent(CLOSED_CATEGORY_ID);
-await interaction.channel.setName(`closed-${interaction.channel.name}`);
-
-return interaction.reply({ content: "Ticket Closed ✅", ephemeral: true });
-}
 }
 
 } catch (err) {
