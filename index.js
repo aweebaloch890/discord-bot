@@ -4,18 +4,21 @@ const {
     GatewayIntentBits,
     Partials,
     PermissionsBitField,
-    EmbedBuilder
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType
 } = require('discord.js');
 
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 
-// ================= ERROR HANDLING =================
+const STAFF_ROLE_ID = "1397441836330651798"; // 🔥 CHANGE THIS
+
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
 
-// ================= CLIENT =================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -26,255 +29,196 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-// ================= DATABASE =================
-let vouches = [];
-if (fs.existsSync('./vouches.json')) {
-    vouches = JSON.parse(fs.readFileSync('./vouches.json'));
-}
-
-// ================= RGB SYSTEM =================
-let hue = 0;
-function getRGB() {
-    hue = (hue + 25) % 360;
-    return parseInt(`0x${require('color-convert').hsl.hex([hue, 100, 50])}`);
-}
-
 // ================= READY =================
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     const commands = [
 
-        // ===== VOUCH =====
-        {
-            name: 'vouch',
-            description: 'Give premium RGB vouch',
-            options: [
-                {
-                    name: 'seller',
-                    description: 'Select seller',
-                    type: 6,
-                    required: true
-                },
-                {
-                    name: 'product',
-                    description: 'Product name',
-                    type: 3,
-                    required: true
-                },
-                {
-                    name: 'price',
-                    description: 'Product price',
-                    type: 3,
-                    required: true
-                },
-                {
-                    name: 'rating',
-                    description: 'Rating from 1 to 5',
-                    type: 4,
-                    required: true,
-                    choices: [
-                        { name: '1 Star', value: 1 },
-                        { name: '2 Stars', value: 2 },
-                        { name: '3 Stars', value: 3 },
-                        { name: '4 Stars', value: 4 },
-                        { name: '5 Stars', value: 5 }
-                    ]
-                },
-                {
-                    name: 'reason',
-                    description: 'Reason for vouch',
-                    type: 3,
-                    required: false
-                }
-            ]
-        },
+        { name: 'ticketpanel', description: 'Send ticket panel' },
 
-        // ===== MESSAGE =====
-        {
-            name: 'message',
-            description: 'Send embed message to channel',
-            options: [
-                {
-                    name: 'channel',
-                    description: 'Select channel',
-                    type: 7,
-                    required: true
-                },
-                {
-                    name: 'text',
-                    description: 'Message content',
-                    type: 3,
-                    required: true
-                }
-            ]
-        },
-
-        // ===== KICK =====
         {
             name: 'kick',
             description: 'Kick a user',
             options: [
-                {
-                    name: 'user',
-                    description: 'Select user to kick',
-                    type: 6,
-                    required: true
-                },
-                {
-                    name: 'reason',
-                    description: 'Reason for kick',
-                    type: 3,
-                    required: false
-                }
+                { name: 'user', description: 'User to kick', type: 6, required: true },
+                { name: 'reason', description: 'Reason', type: 3, required: false }
             ]
         },
 
-        // ===== TIMEOUT =====
+        {
+            name: 'ban',
+            description: 'Ban a user',
+            options: [
+                { name: 'user', description: 'User to ban', type: 6, required: true },
+                { name: 'reason', description: 'Reason', type: 3, required: false }
+            ]
+        },
+
         {
             name: 'timeout',
             description: 'Timeout a user',
             options: [
-                {
-                    name: 'user',
-                    description: 'Select user to timeout',
-                    type: 6,
-                    required: true
-                },
-                {
-                    name: 'duration',
-                    description: 'Duration in minutes',
-                    type: 4,
-                    required: true
-                },
-                {
-                    name: 'reason',
-                    description: 'Reason for timeout',
-                    type: 3,
-                    required: false
-                }
+                { name: 'user', description: 'User to timeout', type: 6, required: true },
+                { name: 'duration', description: 'Minutes', type: 4, required: true }
+            ]
+        },
+
+        {
+            name: 'mute',
+            description: 'Mute user (timeout 10 min)',
+            options: [
+                { name: 'user', description: 'User to mute', type: 6, required: true }
             ]
         }
+
     ];
 
-    try {
-        await client.application.commands.set(commands, process.env.GUILD_ID);
-        console.log("Slash Commands Registered ✅");
-    } catch (err) {
-        console.error("Command Register Error:", err);
-    }
+    await client.application.commands.set(commands, process.env.GUILD_ID);
+    console.log("Slash Commands Registered ✅");
 });
 
 // ================= INTERACTIONS =================
 client.on('interactionCreate', async interaction => {
 
-    if (!interaction.isChatInputCommand()) return;
+    // ================= SLASH =================
+    if (interaction.isChatInputCommand()) {
 
-    try {
-
-        // ===== VOUCH =====
-        if (interaction.commandName === 'vouch') {
-
-            const seller = interaction.options.getUser('seller');
-            const product = interaction.options.getString('product');
-            const price = interaction.options.getString('price');
-            const rating = interaction.options.getInteger('rating');
-            const reason = interaction.options.getString('reason') || "No reason provided.";
-
-            if (seller.id === interaction.user.id)
-                return interaction.reply({ content: "❌ Khud ko vouch nahi de sakte!", ephemeral: true });
-
-            const stars = "⭐".repeat(rating);
-            const vouchID = uuidv4().split("-")[0].toUpperCase();
+        // ===== TICKET PANEL =====
+        if (interaction.commandName === "ticketpanel") {
 
             const embed = new EmbedBuilder()
-                .setColor(getRGB())
-                .setTitle("💎 New Vouch Recorded")
-                .addFields(
-                    { name: "🛒 Product", value: product, inline: true },
-                    { name: "💲 Price", value: price, inline: true },
-                    { name: "👤 Seller", value: `<@${seller.id}>` },
-                    { name: "⭐ Rating", value: `${stars} (${rating}/5)` },
-                    { name: "📝 Reason", value: reason },
-                    { name: "🙌 Vouched By", value: `<@${interaction.user.id}>`, inline: true },
-                    { name: "🆔 ID", value: vouchID, inline: true }
-                )
-                .setTimestamp();
+                .setTitle("Elite Services | TICKETS")
+                .setDescription("⚠️ **ATTENTION!**\nDo not open a TICKET without a valid reason.")
+                .setColor(0x5865F2);
 
-            vouches.push({
-                id: vouchID,
-                seller: seller.id,
-                product,
-                price,
-                rating,
-                reason,
-                vouchedBy: interaction.user.id,
-                date: new Date()
-            });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("support").setLabel("Support").setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("account").setLabel("Account").setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId("nitro").setLabel("Nitro").setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId("replace").setLabel("Replace Product").setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId("boost").setLabel("Server Boost").setStyle(ButtonStyle.Primary)
+            );
 
-            fs.writeFileSync('./vouches.json', JSON.stringify(vouches, null, 2));
-
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        // ===== MESSAGE =====
-        if (interaction.commandName === 'message') {
-            const channel = interaction.options.getChannel('channel');
-            const text = interaction.options.getString('text');
-
-            const embed = new EmbedBuilder()
-                .setColor(getRGB())
-                .setDescription(text)
-                .setTimestamp();
-
-            await channel.send({ embeds: [embed] });
-            return interaction.reply({ content: "Message sent ✅", ephemeral: true });
+            return interaction.reply({ embeds: [embed], components: [row] });
         }
 
         // ===== KICK =====
-        if (interaction.commandName === 'kick') {
-
+        if (interaction.commandName === "kick") {
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
-            const member = interaction.options.getMember('user');
-            const reason = interaction.options.getString('reason') || "No reason";
+            const member = interaction.options.getMember("user");
+            await member.kick();
+            return interaction.reply("User kicked ✅");
+        }
 
-            await member.kick(reason);
-            return interaction.reply(`👢 ${member.user.tag} kicked`);
+        // ===== BAN =====
+        if (interaction.commandName === "ban") {
+            if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
+                return interaction.reply({ content: "No permission", ephemeral: true });
+
+            const member = interaction.options.getMember("user");
+            await member.ban();
+            return interaction.reply("User banned ✅");
         }
 
         // ===== TIMEOUT =====
-        if (interaction.commandName === 'timeout') {
-
+        if (interaction.commandName === "timeout") {
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
-            const member = interaction.options.getMember('user');
-            const duration = interaction.options.getInteger('duration');
-            const reason = interaction.options.getString('reason') || "No reason";
-
-            await member.timeout(duration * 60 * 1000, reason);
-            return interaction.reply(`⏳ ${member.user.tag} timeout ${duration} min`);
+            const member = interaction.options.getMember("user");
+            const duration = interaction.options.getInteger("duration");
+            await member.timeout(duration * 60000);
+            return interaction.reply(`Timeout ${duration} min ✅`);
         }
 
-    } catch (err) {
-        console.error("Interaction Error:", err);
+        // ===== MUTE =====
+        if (interaction.commandName === "mute") {
+            const member = interaction.options.getMember("user");
+            await member.timeout(10 * 60000);
+            return interaction.reply("Muted 10 min ✅");
+        }
+    }
+
+    // ================= BUTTONS =================
+    if (interaction.isButton()) {
+
+        // ===== CREATE TICKET =====
+        if (["support", "account", "nitro", "replace", "boost"].includes(interaction.customId)) {
+
+            const channel = await interaction.guild.channels.create({
+                name: `ticket-${interaction.user.username}`,
+                type: ChannelType.GuildText,
+                permissionOverwrites: [
+                    {
+                        id: interaction.guild.id,
+                        deny: [PermissionsBitField.Flags.ViewChannel]
+                    },
+                    {
+                        id: interaction.user.id,
+                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+                    },
+                    {
+                        id: STAFF_ROLE_ID,
+                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+                    }
+                ]
+            });
+
+            const closeButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("close_ticket")
+                    .setLabel("Close Ticket")
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+            await channel.send({
+                content: `<@${interaction.user.id}> | <@&${STAFF_ROLE_ID}>`,
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle("Ticket Opened")
+                        .setDescription("Staff will assist you shortly.")
+                        .setColor(0x00ff99)
+                ],
+                components: [closeButton]
+            });
+
+            return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+        }
+
+        // ===== CLOSE TICKET =====
+        if (interaction.customId === "close_ticket") {
+            if (
+                interaction.member.roles.cache.has(STAFF_ROLE_ID) ||
+                interaction.channel.name.includes(interaction.user.username)
+            ) {
+                await interaction.reply("Closing ticket...");
+                setTimeout(() => {
+                    interaction.channel.delete().catch(() => {});
+                }, 2000);
+            } else {
+                interaction.reply({ content: "You can't close this ticket", ephemeral: true });
+            }
+        }
     }
 });
 
-// ================= ANTI LINK + ANTI SPAM =================
+// ================= ANTI LINK + SPAM =================
 const spamMap = new Map();
 
-client.on('messageCreate', async message => {
+client.on("messageCreate", async message => {
     if (message.author.bot) return;
 
+    // Anti Link
     if (message.content.match(/https?:\/\/\S+/) &&
         !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
         await message.delete().catch(() => {});
-        return message.channel.send(`${message.author} ❌ Links allowed nahi.`);
+        message.channel.send("Links not allowed ❌");
     }
 
+    // Anti Spam
     if (!spamMap.has(message.author.id)) {
         spamMap.set(message.author.id, { count: 1 });
         setTimeout(() => spamMap.delete(message.author.id), 5000);
@@ -282,18 +226,16 @@ client.on('messageCreate', async message => {
         const data = spamMap.get(message.author.id);
         data.count++;
         if (data.count >= 6) {
-            await message.member.timeout(5 * 60 * 1000).catch(() => {});
-            message.channel.send(`${message.author} spam kar raha tha. Timeout.`);
+            await message.member.timeout(5 * 60000).catch(() => {});
             spamMap.delete(message.author.id);
         }
     }
 });
 
-// ================= RAILWAY KEEP ALIVE =================
+// ================= KEEP ALIVE =================
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end("Bot Running ✅");
+    res.end("Bot Running");
 }).listen(process.env.PORT || 3000);
 
-// ================= LOGIN =================
 client.login(process.env.TOKEN);
