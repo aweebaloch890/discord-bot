@@ -52,26 +52,89 @@ client.once("clientReady", async () => {
     await client.application.commands.set([
         { name: "ticketpanel", description: "Send ticket panel" },
 
-        { name: "vouch", description: "Give vouch",
-          options: [
-              { name: "user", type: 6, required: true, description: "User" },
-              { name: "message", type: 3, required: true, description: "Message" }
-          ]},
+        { 
+            name: "vouch", 
+            description: "Give vouch",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                },
+                { 
+                    name: "message", 
+                    description: "Write vouch message", 
+                    type: 3, 
+                    required: true 
+                }
+            ]
+        },
 
-        { name: "vouches", description: "Check vouches",
-          options: [{ name: "user", type: 6, required: true }]},
+        { 
+            name: "vouches", 
+            description: "Check vouches",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                }
+            ]
+        },
 
-        { name: "mute", description: "Mute user",
-          options: [{ name: "user", type: 6, required: true }]},
+        { 
+            name: "mute", 
+            description: "Mute user",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                }
+            ]
+        },
 
-        { name: "timeout", description: "Timeout user",
-          options: [{ name: "user", type: 6, required: true }]},
+        { 
+            name: "timeout", 
+            description: "Timeout user",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                }
+            ]
+        },
 
-        { name: "kick", description: "Kick user",
-          options: [{ name: "user", type: 6, required: true }]},
+        { 
+            name: "kick", 
+            description: "Kick user",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                }
+            ]
+        },
 
-        { name: "ban", description: "Ban user",
-          options: [{ name: "user", type: 6, required: true }]}
+        { 
+            name: "ban", 
+            description: "Ban user",
+            options: [
+                { 
+                    name: "user", 
+                    description: "Select a user", 
+                    type: 6, 
+                    required: true 
+                }
+            ]
+        }
     ]);
 
     console.log("Slash Commands Registered ✅");
