@@ -1,0 +1,7 @@
+{
+  "prefix": "!",
+  "supportRoleName": "Support",
+  "ticketCategoryName": "TICKETS",
+  "logChannelName": "logs",
+  "vouchChannelName": "vouches"
+}
