@@ -1,4 +1,11 @@
+ab dekh sai hai 
+
+
 require("dotenv").config();
+
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
 const {
   Client,
@@ -16,9 +23,7 @@ const {
 
 const crypto = require("crypto");
 
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
+
 
 const CATEGORY_ID = "1337265672597672079";
 const STAFF_ROLE_ID = "1397441836330651798";
