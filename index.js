@@ -4,18 +4,14 @@ const {
     GatewayIntentBits,
     Partials,
     PermissionsBitField,
-    EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    ChannelType
+    EmbedBuilder
 } = require('discord.js');
 
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 
-// ================= ERROR HANDLING (PREVENT CRASH) =================
+// ================= ERROR HANDLING =================
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
 
@@ -40,7 +36,7 @@ if (fs.existsSync('./vouches.json')) {
 let hue = 0;
 function getRGB() {
     hue = (hue + 25) % 360;
-    return `hsl(${hue}, 100%, 50%)`;
+    return parseInt(`0x${require('color-convert').hsl.hex([hue, 100, 50])}`);
 }
 
 // ================= READY =================
@@ -48,18 +44,35 @@ client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     const commands = [
+
+        // ===== VOUCH =====
         {
             name: 'vouch',
             description: 'Give premium RGB vouch',
             options: [
-                { name: 'seller', type: 6, required: true, description: 'Select seller' },
-                { name: 'product', type: 3, required: true, description: 'Product name' },
-                { name: 'price', type: 3, required: true, description: 'Price' },
+                {
+                    name: 'seller',
+                    description: 'Select seller',
+                    type: 6,
+                    required: true
+                },
+                {
+                    name: 'product',
+                    description: 'Product name',
+                    type: 3,
+                    required: true
+                },
+                {
+                    name: 'price',
+                    description: 'Product price',
+                    type: 3,
+                    required: true
+                },
                 {
                     name: 'rating',
+                    description: 'Rating from 1 to 5',
                     type: 4,
                     required: true,
-                    description: 'Rating 1-5',
                     choices: [
                         { name: '1 Star', value: 1 },
                         { name: '2 Stars', value: 2 },
@@ -68,19 +81,80 @@ client.once('clientReady', async () => {
                         { name: '5 Stars', value: 5 }
                     ]
                 },
-                { name: 'reason', type: 3, required: false, description: 'Reason' }
+                {
+                    name: 'reason',
+                    description: 'Reason for vouch',
+                    type: 3,
+                    required: false
+                }
             ]
         },
+
+        // ===== MESSAGE =====
         {
             name: 'message',
-            description: 'Send embed message',
+            description: 'Send embed message to channel',
             options: [
-                { name: 'channel', type: 7, required: true },
-                { name: 'text', type: 3, required: true }
+                {
+                    name: 'channel',
+                    description: 'Select channel',
+                    type: 7,
+                    required: true
+                },
+                {
+                    name: 'text',
+                    description: 'Message content',
+                    type: 3,
+                    required: true
+                }
             ]
         },
-        { name: 'kick', description: 'Kick user', options: [{ name: 'user', type: 6, required: true }] },
-        { name: 'timeout', description: 'Timeout user', options: [{ name: 'user', type: 6, required: true }] }
+
+        // ===== KICK =====
+        {
+            name: 'kick',
+            description: 'Kick a user',
+            options: [
+                {
+                    name: 'user',
+                    description: 'Select user to kick',
+                    type: 6,
+                    required: true
+                },
+                {
+                    name: 'reason',
+                    description: 'Reason for kick',
+                    type: 3,
+                    required: false
+                }
+            ]
+        },
+
+        // ===== TIMEOUT =====
+        {
+            name: 'timeout',
+            description: 'Timeout a user',
+            options: [
+                {
+                    name: 'user',
+                    description: 'Select user to timeout',
+                    type: 6,
+                    required: true
+                },
+                {
+                    name: 'duration',
+                    description: 'Duration in minutes',
+                    type: 4,
+                    required: true
+                },
+                {
+                    name: 'reason',
+                    description: 'Reason for timeout',
+                    type: 3,
+                    required: false
+                }
+            ]
+        }
     ];
 
     try {
@@ -159,22 +233,29 @@ client.on('interactionCreate', async interaction => {
 
         // ===== KICK =====
         if (interaction.commandName === 'kick') {
+
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
             const member = interaction.options.getMember('user');
-            await member.kick();
+            const reason = interaction.options.getString('reason') || "No reason";
+
+            await member.kick(reason);
             return interaction.reply(`👢 ${member.user.tag} kicked`);
         }
 
         // ===== TIMEOUT =====
         if (interaction.commandName === 'timeout') {
+
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
             const member = interaction.options.getMember('user');
-            await member.timeout(10 * 60 * 1000);
-            return interaction.reply(`⏳ ${member.user.tag} timeout 10 min`);
+            const duration = interaction.options.getInteger('duration');
+            const reason = interaction.options.getString('reason') || "No reason";
+
+            await member.timeout(duration * 60 * 1000, reason);
+            return interaction.reply(`⏳ ${member.user.tag} timeout ${duration} min`);
         }
 
     } catch (err) {
@@ -188,29 +269,23 @@ const spamMap = new Map();
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    try {
+    if (message.content.match(/https?:\/\/\S+/) &&
+        !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        await message.delete().catch(() => {});
+        return message.channel.send(`${message.author} ❌ Links allowed nahi.`);
+    }
 
-        if (message.content.match(/https?:\/\/\S+/) &&
-            !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            await message.delete().catch(() => {});
-            return message.channel.send(`${message.author} ❌ Links allowed nahi.`);
+    if (!spamMap.has(message.author.id)) {
+        spamMap.set(message.author.id, { count: 1 });
+        setTimeout(() => spamMap.delete(message.author.id), 5000);
+    } else {
+        const data = spamMap.get(message.author.id);
+        data.count++;
+        if (data.count >= 6) {
+            await message.member.timeout(5 * 60 * 1000).catch(() => {});
+            message.channel.send(`${message.author} spam kar raha tha. Timeout.`);
+            spamMap.delete(message.author.id);
         }
-
-        if (!spamMap.has(message.author.id)) {
-            spamMap.set(message.author.id, { count: 1 });
-            setTimeout(() => spamMap.delete(message.author.id), 5000);
-        } else {
-            const data = spamMap.get(message.author.id);
-            data.count++;
-            if (data.count >= 6) {
-                await message.member.timeout(5 * 60 * 1000).catch(() => {});
-                message.channel.send(`${message.author} spam kar raha tha. Timeout.`);
-                spamMap.delete(message.author.id);
-            }
-        }
-
-    } catch (err) {
-        console.error("Message Error:", err);
     }
 });
 
