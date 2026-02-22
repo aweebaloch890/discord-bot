@@ -1,5 +1,3 @@
-ab dekh sai hai 
-
 
 require("dotenv").config();
 
@@ -288,3 +286,4 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.login(TOKEN);
+
