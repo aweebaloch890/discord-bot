@@ -1,5 +1,20 @@
-
 require("dotenv").config();
+
+// Safe ENV check
+if (!process.env.TOKEN) {
+  console.error("❌ TOKEN not found in environment variables!");
+  process.exit(1);
+}
+
+if (!process.env.CLIENT_ID) {
+  console.error("❌ CLIENT_ID not found in environment variables!");
+  process.exit(1);
+}
+
+if (!process.env.GUILD_ID) {
+  console.error("❌ GUILD_ID not found in environment variables!");
+  process.exit(1);
+}
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -286,4 +301,5 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.login(TOKEN);
+
 
