@@ -1,17 +1,13 @@
 {
   "name": "advanced-discord-bot",
   "version": "1.0.0",
-  "description": "Advanced Discord Bot with Tickets, Moderation, AntiLink, AntiSpam, Vouch System",
+  "description": "Ticket + Vouch + Moderation Discord Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "Tec Trader",
-  "license": "ISC",
   "dependencies": {
-    "color-convert": "^2.0.1",
     "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5",
-    "uuid": "^9.0.1"
+    "dotenv": "^16.4.5"
   }
 }
