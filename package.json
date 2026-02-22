@@ -1,7 +1,7 @@
 {
   "name": "advanced-discord-bot",
   "version": "1.0.0",
-  "description": "RGB Vouch + Ticket + Moderation Bot",
+  "description": "RGB Vouch + Moderation Discord Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
