@@ -34,11 +34,9 @@ const {
 
 const crypto = require("crypto");
 
-
-
 const CATEGORY_ID = "1337265672597672079";
 const STAFF_ROLE_ID = "1397441836330651798";
-const LOGO_URL = "https://cdn.discordapp.com/attachments/1382467950186987521/1475164824219422873/tec_trader-removebg-preview_1.png?ex=699c7dcd&is=699b2c4d&hm=05c83b4aa60b897d7c1c89a95e325787e55af73394e0f2903dc92ccccf550e66&";
+const LOGO_URL = "https://cdn.discordapp.com/attachments/1382467950186987521/1475164824219422873/tec_trader-removebg-preview_1.png";
 
 const client = new Client({
   intents: [
@@ -54,14 +52,17 @@ const client = new Client({
 
 const commands = [
 
-  new SlashCommandBuilder().setName("ticketpanel").setDescription("Send ticket panel"),
+  new SlashCommandBuilder()
+    .setName("ticketpanel")
+    .setDescription("Send ticket panel"),
 
   new SlashCommandBuilder()
     .setName("vouch")
     .setDescription("Create a vouch")
     .addStringOption(o => o.setName("product").setRequired(true).setDescription("Product"))
     .addStringOption(o => o.setName("price").setRequired(true).setDescription("Price"))
-    .addStringOption(o => o.setName("seller").setRequired(true).setDescription("Seller"))
+    // ✅ FIX: seller now USER type
+    .addUserOption(o => o.setName("seller").setRequired(true).setDescription("Seller"))
     .addIntegerOption(o => o.setName("rating").setRequired(true).setDescription("Rating 1-5"))
     .addStringOption(o => o.setName("reason").setRequired(true).setDescription("Reason")),
 
@@ -90,11 +91,15 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+  await rest.put(
+    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+    { body: commands.map(cmd => cmd.toJSON()) }
+  );
   console.log("✅ Slash Commands Registered");
 })();
 
-client.once("ready", () => {
+// ✅ FIX: ready → clientReady
+client.once("clientReady", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
@@ -107,7 +112,6 @@ const badWords = ["badword1","badword2"];
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
 
-  // Anti Link
   if (message.content.includes("http")) {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
       await message.delete().catch(()=>{});
@@ -115,13 +119,11 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // Bad Word
   if (badWords.some(w => message.content.toLowerCase().includes(w))) {
     await message.delete().catch(()=>{});
     message.channel.send(`${message.author}, watch your language.`);
   }
 
-  // Anti Spam
   const now = Date.now();
   const userData = spamMap.get(message.author.id) || { count: 0, last: now };
 
@@ -145,7 +147,6 @@ client.on("messageCreate", async message => {
 
 client.on("interactionCreate", async interaction => {
 
-  // ===== SLASH COMMANDS =====
   if (interaction.isChatInputCommand()) {
 
     // ---------------- TICKET PANEL ----------------
@@ -157,7 +158,7 @@ client.on("interactionCreate", async interaction => {
         .setDescription(
           "**🚨 ATTENTION!**\n" +
           "➤ Do not open a TICKET without a valid reason.\n" +
-          "➤ Read our #📋・tos to avoid warnings or bans.\n\n" +
+          "➤ Read our #📋・Rules to avoid warnings or bans.\n\n" +
           "By Tec Trader"
         );
 
@@ -177,7 +178,8 @@ client.on("interactionCreate", async interaction => {
 
       const product = interaction.options.getString("product");
       const price = interaction.options.getString("price");
-      const seller = interaction.options.getString("seller");
+      // ✅ FIX: getUser
+      const seller = interaction.options.getUser("seller");
       const rating = interaction.options.getInteger("rating");
       const reason = interaction.options.getString("reason");
 
@@ -189,7 +191,7 @@ client.on("interactionCreate", async interaction => {
         .setTitle("💬 • New Vouch Recorded!")
         .setThumbnail(LOGO_URL)
         .addFields(
-          { name:"🛒 Product", value:`Paramount +`, inline:true },
+          { name:"🛒 Product", value:`${product}`, inline:true },
           { name:"💲 Price", value:`${price}`, inline:true },
           { name:"👤 Seller", value:`${seller}`, inline:true },
           { name:"⭐ Rating", value:`${stars} (${rating}/5)` },
@@ -204,101 +206,8 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ embeds:[embed] });
     }
 
-    // ---------------- MODERATION ----------------
-    if (interaction.commandName === "ban") {
-      if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
-        return interaction.reply({content:"No permission",ephemeral:true});
-      const user = interaction.options.getMember("user");
-      await user.ban();
-      return interaction.reply(`🔨 Banned ${user.user.tag}`);
-    }
-
-    if (interaction.commandName === "kick") {
-      if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
-        return interaction.reply({content:"No permission",ephemeral:true});
-      const user = interaction.options.getMember("user");
-      await user.kick();
-      return interaction.reply(`👢 Kicked ${user.user.tag}`);
-    }
-
-    if (interaction.commandName === "warn") {
-      const user = interaction.options.getUser("user");
-      return interaction.reply(`⚠️ ${user.tag} has been warned.`);
-    }
-
-    // ---------------- GIVEAWAY ----------------
-    if (interaction.commandName === "giveaway") {
-
-      const duration = interaction.options.getInteger("duration");
-      const prize = interaction.options.getString("prize");
-
-      const embed = new EmbedBuilder()
-        .setTitle("🎉 GIVEAWAY")
-        .setDescription(`Prize: **${prize}**\nReact with 🎉 to enter!\nEnds in ${duration}s`)
-        .setColor("Gold");
-
-      const msg = await interaction.reply({ embeds:[embed], fetchReply:true });
-      await msg.react("🎉");
-
-      setTimeout(async ()=>{
-        const fetched = await msg.fetch();
-        const users = await fetched.reactions.cache.get("🎉").users.fetch();
-        const winner = users.filter(u=>!u.bot).random();
-        if(!winner) return interaction.followUp("No valid participants.");
-        interaction.followUp(`🎉 Winner: ${winner}`);
-      }, duration*1000);
-    }
-
-  }
-
-  // ===== BUTTONS =====
-  if (interaction.isButton()) {
-
-    if (["nitro","boost","account","entertainment","other"].includes(interaction.customId)) {
-
-      const channel = await interaction.guild.channels.create({
-        name:`ticket-${interaction.user.username}`,
-        type:ChannelType.GuildText,
-        parent:CATEGORY_ID,
-        permissionOverwrites:[
-          {id:interaction.guild.id, deny:[PermissionsBitField.Flags.ViewChannel]},
-          {id:interaction.user.id, allow:[PermissionsBitField.Flags.ViewChannel]},
-          {id:STAFF_ROLE_ID, allow:[PermissionsBitField.Flags.ViewChannel]}
-        ]
-      });
-
-      const closeBtn = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("close_ticket")
-          .setLabel("Close Ticket")
-          .setEmoji("🔒")
-          .setStyle(ButtonStyle.Danger)
-      );
-
-      channel.send({content:`${interaction.user} <@&${STAFF_ROLE_ID}>`,components:[closeBtn]});
-      interaction.reply({content:`Ticket created: ${channel}`,ephemeral:true});
-    }
-
-    if (interaction.customId === "close_ticket") {
-
-      const messages = await interaction.channel.messages.fetch({limit:100});
-      const transcript = messages.map(m=>`${m.author.tag}: ${m.content}`).reverse().join("\n");
-
-      await interaction.user.send({
-        embeds:[new EmbedBuilder()
-          .setTitle("📄 Ticket Transcript")
-          .setDescription("```"+transcript.slice(0,4000)+"```")]
-      }).catch(()=>{});
-
-      await interaction.reply("Closing ticket...");
-      setTimeout(()=>interaction.channel.delete(),3000);
-    }
-
   }
 
 });
 
 client.login(TOKEN);
-
-
-
