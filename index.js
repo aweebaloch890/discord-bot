@@ -8,7 +8,11 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    ChannelType
+    ChannelType,
+    StringSelectMenuBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
 } = require('discord.js');
 
 const fs = require('fs');
@@ -21,9 +25,6 @@ const PANEL_CHANNEL_ID = "1337266092812406844";
 const STAFF_ROLE_ID = "1397441836330651798";
 const TICKET_CATEGORY_ID = "1337265672597672079";
 
-process.on('unhandledRejection', console.error);
-process.on('uncaughtException', console.error);
-
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -34,78 +35,22 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-// ===== DATABASE =====
 let vouches = [];
 if (fs.existsSync('./vouches.json')) {
     vouches = JSON.parse(fs.readFileSync('./vouches.json'));
 }
 
-// ===== RGB SYSTEM =====
 let hue = 0;
 function getRGB() {
     hue = (hue + 30) % 360;
     return parseInt(`0x${colorConvert.hsl.hex([hue, 100, 50])}`);
 }
 
-// ================= READY =================
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     const commands = [
-
-        { name: 'ticketpanel', description: 'Send ticket panel' },
-
-        {
-            name: 'vouch',
-            description: 'Give vouch to seller',
-            options: [
-                { name: 'seller', description: 'Select seller', type: 6, required: true },
-                { name: 'product', description: 'Product name', type: 3, required: true },
-                { name: 'price', description: 'Price', type: 3, required: true },
-                {
-                    name: 'rating',
-                    description: 'Rating 1-5',
-                    type: 4,
-                    required: true,
-                    choices: [
-                        { name: '1 Star', value: 1 },
-                        { name: '2 Stars', value: 2 },
-                        { name: '3 Stars', value: 3 },
-                        { name: '4 Stars', value: 4 },
-                        { name: '5 Stars', value: 5 }
-                    ]
-                },
-                { name: 'reason', description: 'Reason', type: 3, required: false }
-            ]
-        },
-
-        {
-            name: 'kick',
-            description: 'Kick user',
-            options: [{ name: 'user', description: 'User', type: 6, required: true }]
-        },
-
-        {
-            name: 'ban',
-            description: 'Ban user',
-            options: [{ name: 'user', description: 'User', type: 6, required: true }]
-        },
-
-        {
-            name: 'timeout',
-            description: 'Timeout user',
-            options: [
-                { name: 'user', description: 'User', type: 6, required: true },
-                { name: 'duration', description: 'Minutes', type: 4, required: true }
-            ]
-        },
-
-        {
-            name: 'mute',
-            description: 'Mute user 10 min',
-            options: [{ name: 'user', description: 'User', type: 6, required: true }]
-        }
-
+        { name: 'ticketpanel', description: 'Send ticket panel' }
     ];
 
     await client.application.commands.set(commands, process.env.GUILD_ID);
@@ -117,108 +62,124 @@ client.on('interactionCreate', async interaction => {
 
     // ===== SLASH =====
     if (interaction.isChatInputCommand()) {
-
-        // ===== VOUCH =====
-        if (interaction.commandName === "vouch") {
-
-            const seller = interaction.options.getUser("seller");
-            const product = interaction.options.getString("product");
-            const price = interaction.options.getString("price");
-            const rating = interaction.options.getInteger("rating");
-            const reason = interaction.options.getString("reason") || "No reason provided.";
-
-            if (seller.id === interaction.user.id)
-                return interaction.reply({ content: "You cannot vouch yourself ❌", ephemeral: true });
-
-            const stars = "⭐".repeat(rating);
-            const id = uuidv4().split("-")[0].toUpperCase();
-
-            const embed = new EmbedBuilder()
-                .setColor(getRGB())
-                .setTitle("💎 New Vouch")
-                .addFields(
-                    { name: "Seller", value: `<@${seller.id}>`, inline: true },
-                    { name: "Product", value: product, inline: true },
-                    { name: "Price", value: price, inline: true },
-                    { name: "Rating", value: `${stars} (${rating}/5)` },
-                    { name: "Reason", value: reason },
-                    { name: "Vouched By", value: `<@${interaction.user.id}>`, inline: true },
-                    { name: "ID", value: id, inline: true }
-                )
-                .setTimestamp();
-
-            vouches.push({ id, seller: seller.id, product, price, rating, reason });
-            fs.writeFileSync('./vouches.json', JSON.stringify(vouches, null, 2));
-
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        // ===== TICKET PANEL =====
         if (interaction.commandName === "ticketpanel") {
 
-            if (interaction.channel.id !== PANEL_CHANNEL_ID)
-                return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
-
             const embed = new EmbedBuilder()
-                .setTitle("Tec Trader | TICKETS")
-                .setDescription("Click a button below to open ticket.")
+                .setTitle("Elite Services | Tickets")
+                .setDescription("Select ticket type below.")
                 .setColor(0x5865F2);
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId("Support").setLabel("Support").setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("Account").setLabel("Account").setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId("Nitro").setLabel("Nitro").setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId("Entertainment").setLabel("Entertainment").setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId("Boost").setLabel("Server Boost").setStyle(ButtonStyle.Primary)
-            );
+            const select = new StringSelectMenuBuilder()
+                .setCustomId("ticket_select")
+                .setPlaceholder("Choose ticket type")
+                .addOptions([
+                    { label: "Purchase", value: "purchase" },
+                    { label: "Replacement", value: "replace" },
+                    { label: "Not Received", value: "notreceive" }
+                ]);
+
+            const row = new ActionRowBuilder().addComponents(select);
 
             return interaction.reply({ embeds: [embed], components: [row] });
         }
-
     }
 
-    // ===== BUTTONS =====
+    // ===== DROPDOWN =====
+    if (interaction.isStringSelectMenu()) {
+
+        const type = interaction.values[0];
+
+        const modal = new ModalBuilder()
+            .setCustomId(`modal_${type}`)
+            .setTitle("Ticket Form");
+
+        const input1 = new TextInputBuilder()
+            .setCustomId("field1")
+            .setLabel("Product / Issue")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        const input2 = new TextInputBuilder()
+            .setCustomId("field2")
+            .setLabel("Payment Method / Order ID")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        const input3 = new TextInputBuilder()
+            .setCustomId("field3")
+            .setLabel("Extra Details")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(input1),
+            new ActionRowBuilder().addComponents(input2),
+            new ActionRowBuilder().addComponents(input3)
+        );
+
+        return interaction.showModal(modal);
+    }
+
+    // ===== MODAL SUBMIT =====
+    if (interaction.isModalSubmit()) {
+
+        const existing = interaction.guild.channels.cache.find(
+            c => c.name === `ticket-${interaction.user.id}`
+        );
+
+        if (existing)
+            return interaction.reply({ content: "You already have ticket open ❌", ephemeral: true });
+
+        const channel = await interaction.guild.channels.create({
+            name: `ticket-${interaction.user.id}`,
+            type: ChannelType.GuildText,
+            parent: TICKET_CATEGORY_ID,
+            permissionOverwrites: [
+                { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+                { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+            ]
+        });
+
+        const closeRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("close_ticket")
+                .setLabel("🔒 Close Ticket")
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        const embed = new EmbedBuilder()
+            .setTitle("Ticket Opened")
+            .setColor(0x00ff99)
+            .addFields(
+                { name: "User", value: `<@${interaction.user.id}>` },
+                { name: "Details", value: interaction.fields.getTextInputValue("field1") },
+                { name: "Payment / ID", value: interaction.fields.getTextInputValue("field2") },
+                { name: "Extra", value: interaction.fields.getTextInputValue("field3") }
+            );
+
+        await channel.send({
+            content: `<@&${STAFF_ROLE_ID}>`,
+            embeds: [embed],
+            components: [closeRow]
+        });
+
+        return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+    }
+
+    // ===== CLOSE =====
     if (interaction.isButton()) {
-
-        if (["Support","Account","nitro","Entertainment","Boost"].includes(interaction.customId)) {
-
-            const existing = interaction.guild.channels.cache.find(
-                c => c.name === `ticket-${interaction.user.id}`
-            );
-
-            if (existing)
-                return interaction.reply({ content: "You already have ticket open ❌", ephemeral: true });
-
-            const channel = await interaction.guild.channels.create({
-                name: `ticket-${interaction.user.id}`,
-                type: ChannelType.GuildText,
-                parent: TICKET_CATEGORY_ID,
-                permissionOverwrites: [
-                    { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                    { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-                    { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-                ]
-            });
-
-            const closeRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId("close_ticket")
-                    .setLabel("Close Ticket")
-                    .setStyle(ButtonStyle.Danger)
-            );
-
-            await channel.send({
-                content: `<@${interaction.user.id}>`,
-                embeds: [new EmbedBuilder().setTitle("Ticket Opened").setColor(0x00ff99)],
-                components: [closeRow]
-            });
-
-            return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
-        }
-
         if (interaction.customId === "close_ticket") {
-            await interaction.reply("Closing...");
-            setTimeout(() => interaction.channel.delete().catch(()=>{}), 2000);
+
+            if (
+                interaction.member.roles.cache.has(STAFF_ROLE_ID) ||
+                interaction.channel.name.includes(interaction.user.id)
+            ) {
+                await interaction.reply("Closing...");
+                setTimeout(() => interaction.channel.delete().catch(()=>{}), 2000);
+            } else {
+                interaction.reply({ content: "No permission ❌", ephemeral: true });
+            }
         }
     }
 });
