@@ -18,11 +18,13 @@ const {
 const fs = require("fs");
 const http = require("http");
 
+// ================= CONFIG =================
 const PANEL_CHANNEL_ID = "1337266092812406844";
 const STAFF_ROLE_ID = "1397441836330651798";
 const OPEN_CATEGORY_ID = "1337265672597672079";
 const CLOSED_CATEGORY_ID = "1407037252609118328";
 
+// ================= CLIENT =================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -34,17 +36,14 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-// ================= TICKET COUNTER =================
-let ticketData = { count: 0 };
-if (fs.existsSync("./tickets.json")) {
-    ticketData = JSON.parse(fs.readFileSync("./tickets.json"));
-}
+// ================= DATA =================
+let ticketData = fs.existsSync("./tickets.json")
+    ? JSON.parse(fs.readFileSync("./tickets.json"))
+    : { count: 0 };
 
-// ================= VOUCH DATA =================
-let vouchData = { users: {} };
-if (fs.existsSync("./vouches.json")) {
-    vouchData = JSON.parse(fs.readFileSync("./vouches.json"));
-}
+let vouchData = fs.existsSync("./vouches.json")
+    ? JSON.parse(fs.readFileSync("./vouches.json"))
+    : { users: {} };
 
 // ================= READY =================
 client.once("clientReady", async () => {
@@ -52,21 +51,27 @@ client.once("clientReady", async () => {
 
     await client.application.commands.set([
         { name: "ticketpanel", description: "Send ticket panel" },
-        {
-            name: "vouch",
-            description: "Give vouch to user",
-            options: [
-                { name: "user", type: 6, description: "Select user", required: true },
-                { name: "message", type: 3, description: "Vouch message", required: true }
-            ]
-        },
-        {
-            name: "vouches",
-            description: "Check user vouches",
-            options: [
-                { name: "user", type: 6, description: "Select user", required: true }
-            ]
-        }
+
+        { name: "vouch", description: "Give vouch",
+          options: [
+              { name: "user", type: 6, required: true, description: "User" },
+              { name: "message", type: 3, required: true, description: "Message" }
+          ]},
+
+        { name: "vouches", description: "Check vouches",
+          options: [{ name: "user", type: 6, required: true }]},
+
+        { name: "mute", description: "Mute user",
+          options: [{ name: "user", type: 6, required: true }]},
+
+        { name: "timeout", description: "Timeout user",
+          options: [{ name: "user", type: 6, required: true }]},
+
+        { name: "kick", description: "Kick user",
+          options: [{ name: "user", type: 6, required: true }]},
+
+        { name: "ban", description: "Ban user",
+          options: [{ name: "user", type: 6, required: true }]}
     ]);
 
     console.log("Slash Commands Registered ✅");
@@ -78,91 +83,85 @@ client.on("interactionCreate", async interaction => {
     // ===== SLASH COMMANDS =====
     if (interaction.isChatInputCommand()) {
 
-        // ===== TICKET PANEL =====
+        // ===== PANEL =====
         if (interaction.commandName === "ticketpanel") {
+            if (interaction.channelId !== PANEL_CHANNEL_ID)
+                return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
 
             const embed = new EmbedBuilder()
-                .setColor(0x2b2d31)
                 .setTitle("TEC TRADER")
-                .setDescription(
-`If you need help, click on the option corresponding to the type of ticket you want to open.
-
-**Ticket times**
-• 24/7`
-                );
+                .setColor(0x2b2d31)
+                .setDescription("Select ticket type below");
 
             const select = new StringSelectMenuBuilder()
                 .setCustomId("ticket_select")
                 .setPlaceholder("Select ticket type")
-                .addOptions([
+                .addOptions(
                     { label: "Purchase", value: "purchase", emoji: "🛒" },
                     { label: "Replacement", value: "replace", emoji: "🔁" },
                     { label: "Product not received", value: "notreceived", emoji: "🚫" },
                     { label: "Other", value: "other", emoji: "🌐" }
-                ]);
+                );
 
-            const row = new ActionRowBuilder().addComponents(select);
-
-            return interaction.reply({ embeds: [embed], components: [row] });
+            return interaction.reply({
+                embeds: [embed],
+                components: [new ActionRowBuilder().addComponents(select)]
+            });
         }
 
-        // ===== VOUCH ADD =====
+        // ===== MODERATION =====
+        const member = interaction.options.getMember("user");
+
+        if (interaction.commandName === "mute" || interaction.commandName === "timeout") {
+            if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
+                return interaction.reply({ content: "No permission ❌", ephemeral: true });
+
+            await member.timeout(5 * 60 * 1000);
+            return interaction.reply(`🔇 ${member.user.tag} muted`);
+        }
+
+        if (interaction.commandName === "kick") {
+            if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
+                return interaction.reply({ content: "No permission ❌", ephemeral: true });
+
+            await member.kick();
+            return interaction.reply(`👢 ${member.user.tag} kicked`);
+        }
+
+        if (interaction.commandName === "ban") {
+            if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
+                return interaction.reply({ content: "No permission ❌", ephemeral: true });
+
+            await member.ban();
+            return interaction.reply(`⛔ ${member.user.tag} banned`);
+        }
+
+        // ===== VOUCH =====
         if (interaction.commandName === "vouch") {
-
             const user = interaction.options.getUser("user");
-            const message = interaction.options.getString("message");
+            const msg = interaction.options.getString("message");
 
-            if (user.id === interaction.user.id)
-                return interaction.reply({ content: "You cannot vouch yourself ❌", ephemeral: true });
-
-            if (!vouchData.users[user.id]) {
-                vouchData.users[user.id] = [];
-            }
-
+            if (!vouchData.users[user.id]) vouchData.users[user.id] = [];
             vouchData.users[user.id].push({
                 from: interaction.user.tag,
-                message: message,
-                date: new Date().toLocaleDateString()
+                msg,
+                date: new Date().toLocaleString()
             });
 
             fs.writeFileSync("./vouches.json", JSON.stringify(vouchData, null, 2));
-
-            return interaction.reply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setTitle("✅ New Vouch Added")
-                        .addFields(
-                            { name: "User", value: `<@${user.id}>` },
-                            { name: "From", value: interaction.user.tag },
-                            { name: "Message", value: message }
-                        )
-                        .setFooter({ text: `Total Vouches: ${vouchData.users[user.id].length}` })
-                        .setColor(0x00ff00)
-                ]
-            });
+            return interaction.reply(`✅ Vouch added for ${user.tag}`);
         }
 
-        // ===== VOUCH CHECK =====
         if (interaction.commandName === "vouches") {
-
             const user = interaction.options.getUser("user");
+            const list = vouchData.users[user.id] || [];
 
-            if (!vouchData.users[user.id] || vouchData.users[user.id].length === 0) {
-                return interaction.reply("No vouches found.");
-            }
-
-            const list = vouchData.users[user.id]
-                .map(v => `• ${v.message} (by ${v.from})`)
-                .slice(-10)
-                .join("\n");
+            if (!list.length) return interaction.reply("No vouches.");
 
             return interaction.reply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setTitle(`⭐ ${user.username}'s Vouches`)
-                        .setDescription(list)
-                        .setFooter({ text: `Total: ${vouchData.users[user.id].length}` })
-                        .setColor(0xffd700)
+                embeds: [new EmbedBuilder()
+                    .setTitle(`${user.username} Vouches`)
+                    .setDescription(list.map(v => `• ${v.msg} — ${v.from}`).join("\n"))
                 ]
             });
         }
@@ -170,128 +169,118 @@ client.on("interactionCreate", async interaction => {
 
     // ===== DROPDOWN =====
     if (interaction.isStringSelectMenu()) {
-
-        const type = interaction.values[0];
-        let modal = new ModalBuilder()
-            .setCustomId(`modal_${type}`)
-            .setTitle("Ticket Form");
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                    .setCustomId("details")
-                    .setLabel("Provide required details")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(true)
-            )
-        );
-
+        const modal = new ModalBuilder()
+            .setCustomId(`modal_${interaction.values[0]}`)
+            .setTitle("Ticket Form")
+            .addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("details")
+                        .setLabel("Provide required details")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(true)
+                )
+            );
         return interaction.showModal(modal);
     }
 
     // ===== MODAL SUBMIT =====
     if (interaction.isModalSubmit()) {
-
         ticketData.count++;
         fs.writeFileSync("./tickets.json", JSON.stringify(ticketData));
 
-        const ticketNumber = String(ticketData.count).padStart(2, "0");
-        const channelName = `ticket-${ticketNumber}`;
-
+        const number = String(ticketData.count).padStart(2, "0");
         const channel = await interaction.guild.channels.create({
-            name: channelName,
+            name: `ticket-${number}`,
             type: ChannelType.GuildText,
             parent: OPEN_CATEGORY_ID,
             permissionOverwrites: [
                 { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-                { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+                { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
+                { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel] }
             ]
         });
 
-        const closeBtn = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId("close_ticket")
-                .setLabel("🔒 Close Ticket")
-                .setStyle(ButtonStyle.Danger)
+        const buttons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("close").setLabel("🔒 Close").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId("claim").setLabel("👮 Claim").setStyle(ButtonStyle.Primary)
         );
 
         await channel.send({
             content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
-            embeds: [
-                new EmbedBuilder()
-                    .setTitle(`Ticket #${ticketNumber}`)
-                    .setDescription(interaction.fields.getTextInputValue("details"))
-                    .setColor(0x00ff99)
+            embeds: [new EmbedBuilder()
+                .setTitle(`Ticket #${number}`)
+                .setDescription(interaction.fields.getTextInputValue("details"))
             ],
-            components: [closeBtn]
+            components: [buttons]
         });
 
-        return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+        return interaction.reply({ content: `Ticket created ${channel}`, ephemeral: true });
     }
 
-    // ===== CLOSE BUTTON =====
+    // ===== BUTTONS =====
     if (interaction.isButton()) {
-        if (interaction.customId === "close_ticket") {
+        const channel = interaction.channel;
 
-            const channel = interaction.channel;
+        if (interaction.customId === "claim") {
+            await channel.send(`👮 Claimed by ${interaction.user}`);
+            return interaction.reply({ content: "Claimed", ephemeral: true });
+        }
 
-            await interaction.reply("Closing ticket...");
+        if (interaction.customId === "close") {
+            const msgs = await channel.messages.fetch({ limit: 100 });
+            let transcript = msgs.map(m => `[${m.author.tag}] ${m.content}`).join("\n");
 
-            const messages = await channel.messages.fetch({ limit: 100 });
-            const sorted = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-
-            let transcript = `Transcript of ${channel.name}\n\n`;
-            sorted.forEach(msg => {
-                transcript += `[${msg.author.tag}] ${msg.content}\n`;
-            });
-
-            const fileName = `${channel.name}-transcript.txt`;
-            fs.writeFileSync(fileName, transcript);
-
-            try {
-                await interaction.user.send({
-                    content: "Here is your ticket transcript:",
-                    files: [fileName]
-                });
-            } catch {}
-
-            fs.unlinkSync(fileName);
+            fs.writeFileSync("transcript.txt", transcript);
+            await interaction.user.send({ files: ["transcript.txt"] }).catch(()=>{});
+            fs.unlinkSync("transcript.txt");
 
             await channel.setParent(CLOSED_CATEGORY_ID);
             await channel.setName(`closed-${channel.name}`);
-            await channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: false });
+
+            if (interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                await channel.send(
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId("reopen").setLabel("🔓 Reopen").setStyle(ButtonStyle.Success)
+                    )
+                );
+            }
+            return interaction.reply("Ticket closed");
+        }
+
+        if (interaction.customId === "reopen") {
+            await channel.setParent(OPEN_CATEGORY_ID);
+            await channel.setName(channel.name.replace("closed-", ""));
+            return interaction.reply("Ticket reopened");
         }
     }
 });
 
 // ================= ANTI LINK + SPAM =================
-const spamMap = new Map();
+const spam = new Map();
+client.on("messageCreate", async msg => {
+    if (msg.author.bot) return;
 
-client.on("messageCreate", async message => {
-    if (message.author.bot) return;
-
-    if (message.content.match(/https?:\/\/\S+/) &&
-        !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-        await message.delete().catch(()=>{});
+    if (/https?:\/\//.test(msg.content)) {
+        if (!msg.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            await msg.delete().catch(()=>{});
+        }
     }
 
-    if (!spamMap.has(message.author.id)) {
-        spamMap.set(message.author.id, { count: 1 });
-        setTimeout(() => spamMap.delete(message.author.id), 5000);
+    if (!spam.has(msg.author.id)) {
+        spam.set(msg.author.id, 1);
+        setTimeout(() => spam.delete(msg.author.id), 5000);
     } else {
-        const data = spamMap.get(message.author.id);
-        data.count++;
-        if (data.count >= 6) {
-            await message.member.timeout(5 * 60000).catch(()=>{});
-            spamMap.delete(message.author.id);
+        spam.set(msg.author.id, spam.get(msg.author.id) + 1);
+        if (spam.get(msg.author.id) >= 6) {
+            await msg.member.timeout(5 * 60000).catch(()=>{});
+            spam.delete(msg.author.id);
         }
     }
 });
 
 // ================= KEEP ALIVE =================
 http.createServer((req, res) => {
-    res.writeHead(200);
     res.end("Bot Running");
 }).listen(process.env.PORT || 3000);
 
