@@ -14,7 +14,7 @@ const {
 const fs = require('fs');
 const http = require('http');
 
-const STAFF_ROLE_ID = "1397441836330651798"; // 🔥 CHANGE THIS
+const STAFF_ROLE_ID = "PUT_YOUR_STAFF_ROLE_ID_HERE"; // 🔥 CHANGE THIS
 
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
@@ -88,7 +88,7 @@ client.on('interactionCreate', async interaction => {
         if (interaction.commandName === "ticketpanel") {
 
             const embed = new EmbedBuilder()
-                .setTitle("Elite Services | TICKETS")
+                .setTitle("Tec Trader | TICKETS")
                 .setDescription("⚠️ **ATTENTION!**\nDo not open a TICKET without a valid reason.")
                 .setColor(0x5865F2);
 
