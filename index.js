@@ -11,10 +11,12 @@ const {
     ChannelType
 } = require('discord.js');
 
-const fs = require('fs');
 const http = require('http');
 
-const STAFF_ROLE_ID = "PUT_YOUR_STAFF_ROLE_ID_HERE"; // 🔥 CHANGE THIS
+// ====== YOUR IDs ======
+const PANEL_CHANNEL_ID = "1337266092812406844";
+const STAFF_ROLE_ID = "1397441836330651798";
+const TICKET_CATEGORY_ID = "1337265672597672079";
 
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
@@ -30,31 +32,25 @@ const client = new Client({
 });
 
 // ================= READY =================
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     const commands = [
-
         { name: 'ticketpanel', description: 'Send ticket panel' },
-
         {
             name: 'kick',
             description: 'Kick a user',
             options: [
-                { name: 'user', description: 'User to kick', type: 6, required: true },
-                { name: 'reason', description: 'Reason', type: 3, required: false }
+                { name: 'user', description: 'User to kick', type: 6, required: true }
             ]
         },
-
         {
             name: 'ban',
             description: 'Ban a user',
             options: [
-                { name: 'user', description: 'User to ban', type: 6, required: true },
-                { name: 'reason', description: 'Reason', type: 3, required: false }
+                { name: 'user', description: 'User to ban', type: 6, required: true }
             ]
         },
-
         {
             name: 'timeout',
             description: 'Timeout a user',
@@ -63,33 +59,38 @@ client.once('clientReady', async () => {
                 { name: 'duration', description: 'Minutes', type: 4, required: true }
             ]
         },
-
         {
             name: 'mute',
-            description: 'Mute user (timeout 10 min)',
+            description: 'Mute user (10 minutes)',
             options: [
                 { name: 'user', description: 'User to mute', type: 6, required: true }
             ]
         }
-
     ];
 
-    await client.application.commands.set(commands, process.env.GUILD_ID);
-    console.log("Slash Commands Registered ✅");
+    try {
+        await client.application.commands.set(commands, process.env.GUILD_ID);
+        console.log("Slash Commands Registered ✅");
+    } catch (err) {
+        console.error(err);
+    }
 });
 
 // ================= INTERACTIONS =================
 client.on('interactionCreate', async interaction => {
 
-    // ================= SLASH =================
+    // ===== SLASH COMMANDS =====
     if (interaction.isChatInputCommand()) {
 
-        // ===== TICKET PANEL =====
+        // TICKET PANEL
         if (interaction.commandName === "ticketpanel") {
+
+            if (interaction.channel.id !== PANEL_CHANNEL_ID)
+                return interaction.reply({ content: "Use this in ticket panel channel only.", ephemeral: true });
 
             const embed = new EmbedBuilder()
                 .setTitle("Tec Trader | TICKETS")
-                .setDescription("⚠️ **ATTENTION!**\nDo not open a TICKET without a valid reason.")
+                .setDescription("⚠️ Do not open a ticket without valid reason.")
                 .setColor(0x5865F2);
 
             const row = new ActionRowBuilder().addComponents(
@@ -103,71 +104,84 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ embeds: [embed], components: [row] });
         }
 
-        // ===== KICK =====
+        // KICK
         if (interaction.commandName === "kick") {
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
             const member = interaction.options.getMember("user");
-            await member.kick();
+            await member.kick().catch(() => {});
             return interaction.reply("User kicked ✅");
         }
 
-        // ===== BAN =====
+        // BAN
         if (interaction.commandName === "ban") {
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
             const member = interaction.options.getMember("user");
-            await member.ban();
+            await member.ban().catch(() => {});
             return interaction.reply("User banned ✅");
         }
 
-        // ===== TIMEOUT =====
+        // TIMEOUT
         if (interaction.commandName === "timeout") {
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
                 return interaction.reply({ content: "No permission", ephemeral: true });
 
             const member = interaction.options.getMember("user");
             const duration = interaction.options.getInteger("duration");
-            await member.timeout(duration * 60000);
-            return interaction.reply(`Timeout ${duration} min ✅`);
+            await member.timeout(duration * 60000).catch(() => {});
+            return interaction.reply(`Timeout ${duration} minutes ✅`);
         }
 
-        // ===== MUTE =====
+        // MUTE
         if (interaction.commandName === "mute") {
             const member = interaction.options.getMember("user");
-            await member.timeout(10 * 60000);
-            return interaction.reply("Muted 10 min ✅");
+            await member.timeout(10 * 60000).catch(() => {});
+            return interaction.reply("Muted 10 minutes ✅");
         }
     }
 
-    // ================= BUTTONS =================
+    // ===== BUTTONS =====
     if (interaction.isButton()) {
 
-        // ===== CREATE TICKET =====
-        if (["support", "account", "nitro", "replace", "boost"].includes(interaction.customId)) {
+        // CREATE TICKET
+        if (["support","account","nitro","replace","boost"].includes(interaction.customId)) {
+
+            const existing = interaction.guild.channels.cache.find(
+                c => c.name === `ticket-${interaction.user.id}`
+            );
+
+            if (existing)
+                return interaction.reply({ content: "You already have open ticket!", ephemeral: true });
 
             const channel = await interaction.guild.channels.create({
-                name: `ticket-${interaction.user.username}`,
+                name: `ticket-${interaction.user.id}`,
                 type: ChannelType.GuildText,
+                parent: TICKET_CATEGORY_ID,
                 permissionOverwrites: [
-                    {
-                        id: interaction.guild.id,
-                        deny: [PermissionsBitField.Flags.ViewChannel]
-                    },
+                    { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
                     {
                         id: interaction.user.id,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+                        allow: [
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.ReadMessageHistory
+                        ]
                     },
                     {
                         id: STAFF_ROLE_ID,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+                        allow: [
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.ReadMessageHistory
+                        ]
                     }
                 ]
             });
 
-            const closeButton = new ActionRowBuilder().addComponents(
+            const closeRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId("close_ticket")
                     .setLabel("Close Ticket")
@@ -175,31 +189,32 @@ client.on('interactionCreate', async interaction => {
             );
 
             await channel.send({
-                content: `<@${interaction.user.id}> | <@&${STAFF_ROLE_ID}>`,
+                content: `<@${interaction.user.id}>`,
                 embeds: [
                     new EmbedBuilder()
                         .setTitle("Ticket Opened")
                         .setDescription("Staff will assist you shortly.")
                         .setColor(0x00ff99)
                 ],
-                components: [closeButton]
+                components: [closeRow]
             });
 
             return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
         }
 
-        // ===== CLOSE TICKET =====
+        // CLOSE TICKET
         if (interaction.customId === "close_ticket") {
+
             if (
                 interaction.member.roles.cache.has(STAFF_ROLE_ID) ||
-                interaction.channel.name.includes(interaction.user.username)
+                interaction.channel.name === `ticket-${interaction.user.id}`
             ) {
                 await interaction.reply("Closing ticket...");
                 setTimeout(() => {
                     interaction.channel.delete().catch(() => {});
                 }, 2000);
             } else {
-                interaction.reply({ content: "You can't close this ticket", ephemeral: true });
+                interaction.reply({ content: "You can't close this ticket.", ephemeral: true });
             }
         }
     }
@@ -211,14 +226,12 @@ const spamMap = new Map();
 client.on("messageCreate", async message => {
     if (message.author.bot) return;
 
-    // Anti Link
     if (message.content.match(/https?:\/\/\S+/) &&
         !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
         await message.delete().catch(() => {});
         message.channel.send("Links not allowed ❌");
     }
 
-    // Anti Spam
     if (!spamMap.has(message.author.id)) {
         spamMap.set(message.author.id, { count: 1 });
         setTimeout(() => spamMap.delete(message.author.id), 5000);
