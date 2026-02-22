@@ -1,16 +1,17 @@
 {
-  "name": "private-discord-bot",
+  "name": "advanced-discord-bot",
   "version": "1.0.0",
+  "description": "RGB Vouch + Ticket + Moderation Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "fs": "^0.0.1-security",
-    "moment": "^2.29.4",
-    "ms": "^2.1.3",
-    "uuid": "^9.0.1",
-    "discord-html-transcripts": "^3.2.0"
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1"
   }
 }
