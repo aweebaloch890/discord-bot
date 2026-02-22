@@ -52,25 +52,21 @@ client.once("clientReady", async () => {
         { name: "ticketpanel", description: "Send ticket panel" },
 
         {
-            name: "kick",
-            description: "Kick user",
-            options: [{ name: "user", type: 6, description: "User", required: true }]
+            name: "vouch",
+            description: "Create vouch",
+            options: [
+                { name: "user", type: 6, description: "Seller", required: true },
+                { name: "product", type: 3, description: "Product Name", required: true },
+                { name: "price", type: 3, description: "Price", required: true },
+                { name: "rating", type: 4, description: "Rating 1-5", required: true },
+                { name: "reason", type: 3, description: "Reason", required: true }
+            ]
         },
-        {
-            name: "ban",
-            description: "Ban user",
-            options: [{ name: "user", type: 6, description: "User", required: true }]
-        },
-        {
-            name: "unban",
-            description: "Unban user",
-            options: [{ name: "userid", type: 3, description: "User ID", required: true }]
-        },
-        {
-            name: "timeout",
-            description: "Timeout user",
-            options: [{ name: "user", type: 6, description: "User", required: true }]
-        }
+
+        { name: "kick", description: "Kick user", options: [{ name: "user", type: 6, required: true }] },
+        { name: "ban", description: "Ban user", options: [{ name: "user", type: 6, required: true }] },
+        { name: "unban", description: "Unban user", options: [{ name: "userid", type: 3, required: true }] },
+        { name: "timeout", description: "Timeout user", options: [{ name: "user", type: 6, required: true }] }
     ]);
 
     console.log("Slash Commands Registered ✅");
@@ -80,7 +76,7 @@ client.once("clientReady", async () => {
 client.on("interactionCreate", async interaction => {
 try {
 
-// ================= PANEL =================
+// ===== SLASH COMMANDS =====
 if (interaction.isChatInputCommand()) {
 
 if (interaction.commandName === "ticketpanel") {
@@ -109,7 +105,38 @@ components: [new ActionRowBuilder().addComponents(select)]
 });
 }
 
-// ================= MODERATION =================
+// ===== VOUCH SYSTEM =====
+if (interaction.commandName === "vouch") {
+
+const user = interaction.options.getUser("user");
+const product = interaction.options.getString("product");
+const price = interaction.options.getString("price");
+let rating = interaction.options.getInteger("rating");
+const reason = interaction.options.getString("reason");
+
+if (rating > 5) rating = 5;
+if (rating < 1) rating = 1;
+
+const stars = "⭐".repeat(rating);
+const vouchID = Math.random().toString(36).substring(2,8).toUpperCase();
+
+const embed = new EmbedBuilder()
+.setColor(0x2b2d31)
+.setTitle("🛍️ • New Vouch Recorded!")
+.addFields(
+{ name: "🛒 Product", value: product, inline: true },
+{ name: "💲 Price", value: price, inline: true },
+{ name: "👤 Seller", value: `<@${user.id}>`, inline: false },
+{ name: "⭐ Rating", value: `${stars} (${rating}/5)`, inline: false },
+{ name: "📝 Reason", value: reason },
+{ name: "🔖 Vouched By", value: `<@${interaction.user.id}>`, inline: true },
+{ name: "🆔 Vouch ID", value: vouchID, inline: true }
+);
+
+return interaction.reply({ embeds: [embed] });
+}
+
+// ===== MODERATION =====
 if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator))
 return interaction.reply({ content: "Admin Only ❌", ephemeral: true });
 
@@ -137,119 +164,19 @@ return interaction.reply("User Unbanned ✅");
 }
 }
 
-// ================= DROPDOWN =================
-if (interaction.isStringSelectMenu()) {
-
-let modal;
-
-if (interaction.values[0] === "purchase") {
-modal = new ModalBuilder()
-.setCustomId("purchase")
-.setTitle("🛒 Purchase")
-.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("payment").setLabel("Payment Method JazzCash/Easypaisa/Bank/Crypto").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("details").setLabel("Extra Details").setStyle(TextInputStyle.Paragraph).setRequired(true))
-);
-}
-
-if (interaction.values[0] === "replacement") {
-modal = new ModalBuilder()
-.setCustomId("replacement")
-.setTitle("🔁 Replacement")
-.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("order").setLabel("Order ID").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("transaction").setLabel("Transaction ID").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("problem").setLabel("Problem Description").setStyle(TextInputStyle.Paragraph).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("screenshot").setLabel("Screenshot").setStyle(TextInputStyle.Short).setRequired(true))
-);
-}
-
-if (interaction.values[0] === "notreceived") {
-modal = new ModalBuilder()
-.setCustomId("notreceived")
-.setTitle("❌ Not Received")
-.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("payment").setLabel("Payment Method").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("transaction").setLabel("Transaction ID").setStyle(TextInputStyle.Short).setRequired(true)),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("proof").setLabel("Proof Screenshot").setStyle(TextInputStyle.Short).setRequired(true))
-);
-}
-
-if (interaction.values[0] === "other") {
-modal = new ModalBuilder()
-.setCustomId("other")
-.setTitle("🌐 Other")
-.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("help").setLabel("How can I help U").setStyle(TextInputStyle.Paragraph).setRequired(true))
-);
-}
-
-return interaction.showModal(modal);
-}
-
-// ================= MODAL SUBMIT =================
-if (interaction.isModalSubmit()) {
-
-await interaction.deferReply({ ephemeral: true });
-
-ticketData.count++;
-fs.writeFileSync("./tickets.json", JSON.stringify(ticketData));
-const number = String(ticketData.count).padStart(3,"0");
-
-const channel = await interaction.guild.channels.create({
-name: `ticket-${number}`,
-type: ChannelType.GuildText,
-parent: OPEN_CATEGORY_ID,
-permissionOverwrites: [
-{ id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-{ id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
-{ id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel] }
-]
-});
-
-const fields = interaction.fields.fields.map(f => `**${f.customId}**: ${f.value}`).join("\n");
-
-const buttons = new ActionRowBuilder().addComponents(
-new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary),
-new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Danger)
-);
-
-await channel.send({
-content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
-embeds: [new EmbedBuilder().setTitle(`Ticket #${number}`).setDescription(fields).setColor(0x2b2d31)],
-components: [buttons]
-});
-
-return interaction.editReply({ content: `Ticket Created ${channel}` });
-}
-
-// ================= BUTTONS =================
+// ===== TICKET CLOSE FIX =====
 if (interaction.isButton()) {
 
-if (interaction.customId === "claim") {
-return interaction.reply({ content: "Ticket Claimed ✅", ephemeral: true });
-}
-
 if (interaction.customId === "close") {
+
+await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
+ViewChannel: false
+}).catch(()=>{});
+
 await interaction.channel.setParent(CLOSED_CATEGORY_ID);
 await interaction.channel.setName(`closed-${interaction.channel.name}`);
-return interaction.reply("Ticket Closed ✅");
+
+return interaction.reply({ content: "Ticket Closed ✅", ephemeral: true });
 }
 }
 
@@ -265,7 +192,6 @@ const spam = new Map();
 client.on("messageCreate", async msg => {
 
 if (!msg.guild || msg.author.bot) return;
-
 if (msg.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
 if (/https?:\/\/|discord\.gg/i.test(msg.content)) {
