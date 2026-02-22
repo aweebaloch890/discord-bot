@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 // Safe ENV check
 if (!process.env.TOKEN) {
   console.error("❌ TOKEN not found in environment variables!");
@@ -301,5 +299,6 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.login(TOKEN);
+
 
 
