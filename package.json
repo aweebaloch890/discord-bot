@@ -1,7 +1,7 @@
 {
   "name": "advanced-discord-bot",
   "version": "1.0.0",
-  "description": "RGB Vouch + Moderation Discord Bot",
+  "description": "Premium RGB Vouch Discord Bot with Moderation",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,6 +12,7 @@
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "color-convert": "^2.0.1"
   }
 }
