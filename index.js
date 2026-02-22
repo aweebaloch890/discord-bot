@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const {
   Client,
   GatewayIntentBits,
@@ -14,12 +16,13 @@ const {
 
 const crypto = require("crypto");
 
-const CLIENT_ID = "1357680631714156624";
-const GUILD_ID = "1337111106971504661";
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
 const CATEGORY_ID = "1337265672597672079";
 const STAFF_ROLE_ID = "1397441836330651798";
-const LOGO_URL = "https://cdn.discordapp.com/attachments/1382467950186987521/1475164824219422873/tec_trader-removebg-preview_1.png?ex=699c7dcd&is=699b2c4d&hm=05c83b4aa60b897d7c1c89a95e325787e55af73394e0f2903dc92ccccf550e66&"; // put your purple X logo here
+const LOGO_URL = "https://cdn.discordapp.com/attachments/1382467950186987521/1475164824219422873/tec_trader-removebg-preview_1.png?ex=699c7dcd&is=699b2c4d&hm=05c83b4aa60b897d7c1c89a95e325787e55af73394e0f2903dc92ccccf550e66&";
 
 const client = new Client({
   intents: [
