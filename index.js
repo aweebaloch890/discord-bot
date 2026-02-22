@@ -4,8 +4,6 @@ const {
   Partials,
   EmbedBuilder,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   StringSelectMenuBuilder,
   PermissionsBitField,
   ChannelType,
@@ -15,12 +13,11 @@ const {
 } = require("discord.js");
 
 const fs = require("fs");
-const moment = require("moment");
-const ms = require("ms");
 const { v4: uuidv4 } = require("uuid");
 const transcripts = require("discord-html-transcripts");
-
 const config = require("./config.json");
+
+/* ================= CLIENT ================= */
 
 const client = new Client({
   intents: [
@@ -32,39 +29,66 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
+/* ================= TOKEN SAFE CHECK ================= */
+
 const TOKEN = process.env.TOKEN;
 
-// JSON DATABASE INIT
+if (!TOKEN) {
+  console.error("❌ TOKEN not found! Railway Variables check karo.");
+  process.exit(1);
+}
+
+if (typeof TOKEN !== "string" || TOKEN.split(".").length !== 3) {
+  console.error("❌ Invalid TOKEN format! Token galat ya incomplete hai.");
+  process.exit(1);
+}
+
+console.log("✅ TOKEN loaded. Length:", TOKEN.length);
+
+/* ================= DATABASE INIT ================= */
+
 if (!fs.existsSync("./data")) fs.mkdirSync("./data");
-if (!fs.existsSync("./data/warns.json")) fs.writeFileSync("./data/warns.json", "{}");
-if (!fs.existsSync("./data/tickets.json")) fs.writeFileSync("./data/tickets.json", "{}");
-if (!fs.existsSync("./data/vouches.json")) fs.writeFileSync("./data/vouches.json", "{}");
 if (!fs.existsSync("./data/reps.json")) fs.writeFileSync("./data/reps.json", "{}");
 
-const warns = JSON.parse(fs.readFileSync("./data/warns.json"));
-const tickets = JSON.parse(fs.readFileSync("./data/tickets.json"));
-const vouches = JSON.parse(fs.readFileSync("./data/vouches.json"));
 const reps = JSON.parse(fs.readFileSync("./data/reps.json"));
 
+/* ================= READY EVENT ================= */
+
 client.once("ready", async () => {
-  console.log(`${client.user.tag} is online`);
+  console.log(`🚀 ${client.user.tag} is online`);
 
   const commands = [
     new SlashCommandBuilder()
       .setName("announcement")
       .setDescription("Send announcement")
-      .addStringOption(opt => opt.setName("message").setDescription("Message").setRequired(true))
-      .addChannelOption(opt => opt.setName("channel").setDescription("Channel").setRequired(true)),
+      .addStringOption(opt =>
+        opt.setName("message").setDescription("Message").setRequired(true)
+      )
+      .addChannelOption(opt =>
+        opt.setName("channel").setDescription("Channel").setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName("vouch")
       .setDescription("Create vouch")
-      .addUserOption(opt => opt.setName("seller").setDescription("Seller").setRequired(true))
-      .addStringOption(opt => opt.setName("product").setDescription("Product").setRequired(true))
-      .addStringOption(opt => opt.setName("price").setDescription("Price").setRequired(true))
-      .addIntegerOption(opt => opt.setName("rating").setDescription("1-5").setRequired(true))
-      .addStringOption(opt => opt.setName("reason").setDescription("Reason").setRequired(false))
-      .addAttachmentOption(opt => opt.setName("image").setDescription("Proof Image")),
+      .addUserOption(opt =>
+        opt.setName("seller").setDescription("Seller").setRequired(true)
+      )
+      .addStringOption(opt =>
+        opt.setName("product").setDescription("Product").setRequired(true)
+      )
+      .addStringOption(opt =>
+        opt.setName("price").setDescription("Price").setRequired(true)
+      )
+      .addIntegerOption(opt =>
+        opt.setName("rating").setDescription("1-5").setRequired(true)
+      )
+      .addStringOption(opt =>
+        opt.setName("reason").setDescription("Reason").setRequired(false)
+      )
+      .addAttachmentOption(opt =>
+        opt.setName("image").setDescription("Proof Image")
+      ),
 
     new SlashCommandBuilder()
       .setName("ticketpanel")
@@ -75,17 +99,24 @@ client.once("ready", async () => {
       .setDescription("Close ticket")
   ];
 
-  const rest = new REST({ version: "10" }).setToken(TOKEN);
-  await rest.put(
-    Routes.applicationCommands(client.user.id),
-    { body: commands.map(cmd => cmd.toJSON()) }
-  );
+  const rest = new REST({ version: "10" }).setToken(TOKEN.trim());
+
+  try {
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      { body: commands.map(cmd => cmd.toJSON()) }
+    );
+    console.log("✅ Slash commands registered");
+  } catch (err) {
+    console.error("❌ Slash command error:", err.message);
+  }
 });
+
+/* ================= INTERACTIONS ================= */
 
 client.on("interactionCreate", async interaction => {
   if (interaction.isChatInputCommand()) {
 
-    // ANNOUNCEMENT
     if (interaction.commandName === "announcement") {
       const msg = interaction.options.getString("message");
       const channel = interaction.options.getChannel("channel");
@@ -96,11 +127,10 @@ client.on("interactionCreate", async interaction => {
         .setColor("Blue")
         .setTimestamp();
 
-      channel.send({ embeds: [embed] });
-      interaction.reply({ content: "Announcement sent!", ephemeral: true });
+      await channel.send({ embeds: [embed] });
+      return interaction.reply({ content: "✅ Announcement sent!", ephemeral: true });
     }
 
-    // VOUCH
     if (interaction.commandName === "vouch") {
       const seller = interaction.options.getUser("seller");
       const product = interaction.options.getString("product");
@@ -113,7 +143,6 @@ client.on("interactionCreate", async interaction => {
 
       if (!reps[seller.id]) reps[seller.id] = 0;
       reps[seller.id] += 1;
-
       fs.writeFileSync("./data/reps.json", JSON.stringify(reps, null, 2));
 
       const embed = new EmbedBuilder()
@@ -130,12 +159,10 @@ client.on("interactionCreate", async interaction => {
 
       if (image) embed.setImage(image.url);
 
-      interaction.reply({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed] });
     }
 
-    // TICKET PANEL
     if (interaction.commandName === "ticketpanel") {
-
       const menu = new StringSelectMenuBuilder()
         .setCustomId("ticket_menu")
         .setPlaceholder("Select ticket type")
@@ -153,33 +180,27 @@ client.on("interactionCreate", async interaction => {
         .setDescription("Select an option below")
         .setColor("Purple");
 
-      interaction.reply({ embeds: [embed], components: [row] });
+      return interaction.reply({ embeds: [embed], components: [row] });
     }
 
-    // CLOSE
     if (interaction.commandName === "close") {
       if (!interaction.channel.name.startsWith("ticket-"))
-        return interaction.reply({ content: "Not a ticket!", ephemeral: true });
+        return interaction.reply({ content: "❌ Not a ticket!", ephemeral: true });
 
       const attachment = await transcripts.createTranscript(interaction.channel);
-      interaction.channel.send({ files: [attachment] });
+      await interaction.channel.send({ files: [attachment] });
 
       setTimeout(() => interaction.channel.delete(), 3000);
     }
-
   }
 
-  // TICKET CREATE
   if (interaction.isStringSelectMenu()) {
     if (interaction.customId === "ticket_menu") {
-
       const guild = interaction.guild;
-      const category = guild.channels.cache.find(c => c.name === config.ticketCategoryName);
 
       const channel = await guild.channels.create({
         name: `ticket-${interaction.user.username}`,
         type: ChannelType.GuildText,
-        parent: category?.id,
         permissionOverwrites: [
           {
             id: guild.roles.everyone,
@@ -192,34 +213,36 @@ client.on("interactionCreate", async interaction => {
         ]
       });
 
-      channel.send(`Hello <@${interaction.user.id}> support will be with you shortly.`);
-      interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+      await channel.send(`Hello <@${interaction.user.id}> support will be with you shortly.`);
+      return interaction.reply({ content: `✅ Ticket created: ${channel}`, ephemeral: true });
     }
   }
 });
 
-// PREFIX COMMANDS
+/* ================= PREFIX COMMANDS ================= */
+
 client.on("messageCreate", async message => {
   if (!message.content.startsWith(config.prefix) || message.author.bot) return;
 
   const args = message.content.slice(config.prefix.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  if (cmd === "ping") message.reply("Pong!");
+  if (cmd === "ping") return message.reply("🏓 Pong!");
 
   if (cmd === "clear") {
     const amount = parseInt(args[0]);
-    message.channel.bulkDelete(amount);
+    if (!amount) return;
+    await message.channel.bulkDelete(amount);
   }
 
   if (cmd === "ban") {
     const member = message.mentions.members.first();
-    if (member) member.ban();
+    if (member) await member.ban();
   }
 
   if (cmd === "kick") {
     const member = message.mentions.members.first();
-    if (member) member.kick();
+    if (member) await member.kick();
   }
 
   if (cmd === "help") {
@@ -227,4 +250,10 @@ client.on("messageCreate", async message => {
   }
 });
 
-client.login(TOKEN);
+/* ================= LOGIN ================= */
+
+client.login(TOKEN.trim())
+  .then(() => console.log("✅ Bot login successful"))
+  .catch(err => {
+    console.error("❌ Login Failed:", err.message);
+  });
