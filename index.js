@@ -12,8 +12,7 @@ ChannelType,
 StringSelectMenuBuilder,
 ModalBuilder,
 TextInputBuilder,
-TextInputStyle,
-ApplicationCommandOptionType
+TextInputStyle
 } = require("discord.js");
 
 const fs = require("fs");
@@ -22,12 +21,30 @@ const http = require("http");
 // ================= CONFIG =================
 const PANEL_CHANNEL_ID = "1337266092812406844";
 const STAFF_ROLE_ID = "1397441836330651798";
-const OPEN_CATEGORY_ID = "1337265672597672079";
-const CLOSED_CATEGORY_ID = "1407037252609118328";
 
-const SPAM_LIMIT = 6;
-const SPAM_TIME = 5000;
-const AUTO_TIMEOUT = 5 * 60 * 1000;
+// OPEN CATEGORIES
+const CATEGORY = {
+purchase: "1477273688490381394",
+notreceived: "1477273792287084614",
+replacement: "1477273914928271391",
+other: "1477273728575475762"
+};
+
+// CLOSED CATEGORIES
+const CLOSED_CATEGORY = {
+purchase: "1477273688490381394",
+notreceived: "1477273792287084614",
+replacement: "1477273914928271391",
+other: "1477273728575475762"
+};
+
+// EMOJIS
+const EMOJI = {
+purchase: "🛒",
+replacement: "🔁",
+notreceived: "❌",
+other: "🌐"
+};
 
 // ================= CLIENT =================
 const client = new Client({
@@ -41,13 +58,9 @@ GatewayIntentBits.DirectMessages
 partials: [Partials.Channel]
 });
 
-// ================= TICKET DATA =================
-let ticketData = fs.existsSync("./tickets.json")
-? JSON.parse(fs.readFileSync("./tickets.json"))
-: { count: 0 };
-
 // ================= READY =================
 client.once("clientReady", async () => {
+
 console.log(`Logged in as ${client.user.tag}`);
 
 await client.application.commands.set([
@@ -55,13 +68,15 @@ await client.application.commands.set([
 ]);
 
 console.log("Slash Commands Registered ✅");
+
 });
 
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
+
 try {
 
-// ================= SLASH =================
+// ================= PANEL =================
 if (interaction.isChatInputCommand()) {
 
 if (interaction.commandName === "ticketpanel") {
@@ -72,216 +87,229 @@ return interaction.reply({ content: "Wrong channel ❌", ephemeral: true });
 const embed = new EmbedBuilder()
 .setTitle("TEC TRADER")
 .setColor(0x2b2d31)
-.setDescription(`
-👋 **Welcome to TEC TRADER Support!**
-
-Please select the appropriate ticket category from the menu below so our team can assist you quickly and efficiently. 🎫
-
-📌 **Before opening a ticket:**
-• ✅ Make sure your issue has not already been resolved.
-• 🚫 Do not open multiple tickets for the same issue.
-• 📝 Provide clear and complete details about your problem.
-• ⏳ Be patient while waiting for a response from our support team.
-
-💬 Our staff will respond as soon as possible.
-`);
+.setDescription(`Select ticket category below`);
 
 const select = new StringSelectMenuBuilder()
 .setCustomId("ticket_select")
-.setPlaceholder("🎟️ Select ticket type")
+.setPlaceholder("Select ticket type")
 .addOptions(
-{ label: "🛒 Purchase", value: "purchase" },
-{ label: "🔁 Replacement", value: "replacement" },
-{ label: "❌ Not Received", value: "notreceived" },
-{ label: "🌐 Other", value: "other" }
+{ label: "Purchase", value: "purchase", emoji: "🛒" },
+{ label: "Replacement", value: "replacement", emoji: "🔁" },
+{ label: "Not Received", value: "notreceived", emoji: "❌" },
+{ label: "Other", value: "other", emoji: "🌐" }
 );
 
 return interaction.reply({
 embeds: [embed],
 components: [new ActionRowBuilder().addComponents(select)]
 });
+
 }
 }
 
-// ================= SELECT → MODAL =================
-if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
+// ================= SELECT =================
+if (interaction.isStringSelectMenu()) {
 
 const type = interaction.values[0];
+
 const modal = new ModalBuilder()
 .setCustomId(`modal_${type}`)
-.setTitle(`${type.toUpperCase()} FORM`);
+.setTitle(`${type} form`);
 
-if (type === "purchase") {
 modal.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
-),
 new ActionRowBuilder().addComponents(
 new TextInputBuilder()
-.setCustomId("payment")
-.setLabel("Payment Method")
-.setPlaceholder("JazzCash / Easypaisa / Bank / Crypto")
-.setStyle(TextInputStyle.Short)
+.setCustomId("details")
+.setLabel("Enter Details")
+.setStyle(TextInputStyle.Paragraph)
 .setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("details").setLabel("Extra Details").setStyle(TextInputStyle.Paragraph).setRequired(false)
 )
 );
-}
-
-if (type === "replacement") {
-modal.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("order").setLabel("Order ID").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("transaction").setLabel("Transaction ID").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("problem").setLabel("Problem Description").setStyle(TextInputStyle.Paragraph).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("screenshot").setLabel("Screenshot Link").setStyle(TextInputStyle.Short).setRequired(false)
-)
-);
-}
-
-if (type === "notreceived") {
-modal.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("product").setLabel("Product Name").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("payment").setLabel("Payment Method").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("transaction").setLabel("Transaction ID").setStyle(TextInputStyle.Short).setRequired(true)
-),
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("proof").setLabel("Proof Screenshot Link").setStyle(TextInputStyle.Short).setRequired(false)
-)
-);
-}
-
-if (type === "other") {
-modal.addComponents(
-new ActionRowBuilder().addComponents(
-new TextInputBuilder().setCustomId("help").setLabel("How can we help you?").setStyle(TextInputStyle.Paragraph).setRequired(true)
-)
-);
-}
 
 return interaction.showModal(modal);
+
 }
 
 // ================= MODAL SUBMIT =================
 if (interaction.isModalSubmit()) {
 
+const type = interaction.customId.split("_")[1];
+
 await interaction.deferReply({ ephemeral: true });
 
-ticketData.count++;
-fs.writeFileSync("./tickets.json", JSON.stringify(ticketData));
+const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g,"");
 
-const ticketNumber = ticketData.count;
-const ticketName = `ticket-${ticketNumber}`;
+const channelName = `${EMOJI[type]}-${username}`;
 
 const channel = await interaction.guild.channels.create({
-name: ticketName,
+
+name: channelName,
 type: ChannelType.GuildText,
-parent: OPEN_CATEGORY_ID,
+parent: CATEGORY[type],
+
 permissionOverwrites: [
-{ id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-{ id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-{ id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+
+{
+id: interaction.guild.id,
+deny: [PermissionsBitField.Flags.ViewChannel]
+},
+
+{
+id: interaction.user.id,
+allow: [
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
 ]
+},
+
+{
+id: STAFF_ROLE_ID,
+allow: [
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
+]
+}
+
+]
+
 });
 
+// save ticket type
+channel.setTopic(type);
+
 let fields = [];
-interaction.fields.fields.forEach(f => {
-fields.push({ name: f.customId.toUpperCase(), value: f.value });
+
+interaction.fields.fields.forEach(f=>{
+fields.push({
+name: f.customId,
+value: f.value
+});
 });
 
 const embed = new EmbedBuilder()
 .setColor(0x2b2d31)
-.setTitle(`Ticket #${ticketNumber}`)
+.setTitle(`${EMOJI[type]} Ticket Opened`)
 .addFields(fields)
-.setFooter({ text: `Opened by ${interaction.user.tag}` });
+.setFooter({
+text: `Opened by ${interaction.user.tag}`
+});
 
-const row = new ActionRowBuilder().addComponents(
-new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary),
-new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Danger)
+const buttons = new ActionRowBuilder().addComponents(
+
+new ButtonBuilder()
+.setCustomId("claim")
+.setLabel("Claim")
+.setStyle(ButtonStyle.Primary),
+
+new ButtonBuilder()
+.setCustomId("close")
+.setLabel("Close")
+.setStyle(ButtonStyle.Danger)
+
 );
 
 await channel.send({
+
 content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
 embeds: [embed],
-components: [row]
+components: [buttons]
+
 });
 
-interaction.editReply({ content: `Ticket created: ${channel}` });
+interaction.editReply({
+content: `Ticket created: ${channel}`
+});
+
 }
 
-// ================= BUTTONS =================
+// ================= BUTTON =================
 if (interaction.isButton()) {
 
-if (interaction.customId === "claim") {
-if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
-return interaction.reply({ content: "Staff Only ❌", ephemeral: true });
+const channel = interaction.channel;
+const type = channel.topic;
 
-return interaction.reply(`Ticket claimed by <@${interaction.user.id}>`);
+// CLAIM
+if (interaction.customId === "claim") {
+
+if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
+return interaction.reply({
+content: "Staff only",
+ephemeral: true
+});
+
+return interaction.reply(`Claimed by <@${interaction.user.id}>`);
+
 }
 
+// CLOSE
 if (interaction.customId === "close") {
 
 await interaction.deferReply({ ephemeral: true });
 
-const channel = interaction.channel;
-
 const messages = await channel.messages.fetch({ limit: 100 });
+
 let transcript = "";
-messages.reverse().forEach(m => {
+
+messages.reverse().forEach(m=>{
 transcript += `[${m.author.tag}] ${m.content}\n`;
 });
 
-fs.writeFileSync(`./transcript-${channel.name}.txt`, transcript);
+const fileName = `transcript-${channel.name}.txt`;
 
-// Send transcript to user DM
-const userOverwrite = channel.permissionOverwrites.cache.find(p => p.type === 1);
-if (userOverwrite) {
-const user = await client.users.fetch(userOverwrite.id).catch(()=>{});
-if (user) {
+fs.writeFileSync(fileName, transcript);
+
+// DM USER
+const overwrite = channel.permissionOverwrites.cache.find(x=>x.type===1);
+
+if (overwrite){
+
+const user = await client.users.fetch(overwrite.id).catch(()=>{});
+
+if(user){
+
 await user.send({
-content: `Your ticket ${channel.name} has been closed.\nHere is the transcript:`,
-files: [`./transcript-${channel.name}.txt`]
+
+content: "Ticket closed. Transcript below",
+files: [fileName]
+
 }).catch(()=>{});
+
 }
 
-// Remove user access (channel gayab)
-await channel.permissionOverwrites.edit(userOverwrite.id, {
-ViewChannel: false
+await channel.permissionOverwrites.edit(overwrite.id,{
+ViewChannel:false
 });
+
 }
 
-await channel.setParent(CLOSED_CATEGORY_ID);
+// move closed category
+await channel.setParent(CLOSED_CATEGORY[type]);
+
 await channel.setName(`closed-${channel.name}`);
 
-return interaction.editReply({ content: "Ticket Closed & Transcript Sent ✅" });
-}
+interaction.editReply({
+content:"Ticket Closed ✅"
+});
+
 }
 
-} catch (err) {
-console.log(err);
-if (!interaction.replied)
-interaction.reply({ content: "Error handled safely ✅", ephemeral: true }).catch(()=>{});
 }
+
+}catch(err){
+
+console.log(err);
+
+if(!interaction.replied)
+interaction.reply({
+content:"Error handled",
+ephemeral:true
+}).catch(()=>{});
+
+}
+
 });
 
 // ================= KEEP ALIVE =================
-http.createServer((req,res)=>{res.end("Running");}).listen(process.env.PORT||3000);
+http.createServer((req,res)=>res.end("Running")).listen(process.env.PORT||3000);
 
 client.login(process.env.TOKEN);
-
