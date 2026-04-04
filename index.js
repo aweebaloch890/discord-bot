@@ -19,7 +19,7 @@ const http = require("http");
 
 // ================= CONFIG =================
 const PANEL_CHANNEL_ID = "1337266092812406844";
-const STAFF_ROLE_ID = "1397441836330651798";
+const STAFF_ROLE_ID = "1405179388223291552";
 
 // Ticket categories
 const CATEGORY_IDS = {
